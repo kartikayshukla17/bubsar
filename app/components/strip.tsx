@@ -1,12 +1,8 @@
 import type { CSSProperties } from "react";
-import { MarkLabel } from "~/components/mark";
 import { PikaIcon, TIER } from "~/components/icons";
-import { NEW_TUNNEL, OLD_TUNNEL, STEPS, type Step, type StripState, short } from "~/lib/board";
-
-function valueLine(step: Step, url: string) {
-  if (step.destination === "agent-env" || step.destination === "google") return short(url);
-  return `${short(url)}${step.path}`;
-}
+import { MarkLabel } from "~/components/mark";
+import type { Step, StripState } from "~/lib/board";
+import { short } from "~/lib/demo";
 
 /**
  * A flight strip: one write busbar will make. Printed white stock in an ink holder.
@@ -14,28 +10,39 @@ function valueLine(step: Step, url: string) {
  */
 export function Strip({
   step,
+  index,
+  total,
   state,
   dimmed = false,
   cocked = false,
   className = "",
 }: {
   step: Step;
+  /** 1-based position in the run, and the run's length */
+  index: number;
+  total: number;
   state: StripState;
   dimmed?: boolean;
   cocked?: boolean;
   className?: string;
 }) {
   const tier = TIER[step.tier];
-  const index = STEPS.findIndex((s) => s.id === step.id) + 1;
   const turn = state.mark === "handoff";
   const busy = state.mark === "active" || state.mark === "checking";
 
   const second = state.note ? (
-    <span key={state.note} className={`t-swap ${busy ? "t-shimmer t-shimmer--paper" : "bb-strip__sub"}`}>
+    <span
+      key={state.note}
+      className={`t-swap ${busy ? "t-shimmer t-shimmer--paper" : "bb-strip__sub"}`}
+    >
       {state.note}
     </span>
   ) : state.mark === "drift" || state.mark === "planned" ? (
-    <span className="bb-strip__was">was {valueLine(step, OLD_TUNNEL)}</span>
+    step.from === null ? (
+      <span className="bb-strip__sub">Current entry not read yet</span>
+    ) : (
+      <span className="bb-strip__was">was {short(step.from)}</span>
+    )
   ) : (
     <span className="bb-strip__sub">Written, not yet verified</span>
   );
@@ -57,12 +64,12 @@ export function Strip({
         <span className="bb-strip__sub">{step.field}</span>
       </div>
       <div className="bb-strip__route">
-        <span className="bb-strip__value">{valueLine(step, NEW_TUNNEL)}</span>
+        <span className="bb-strip__value">{short(step.to)}</span>
         {second}
       </div>
       <div className="bb-strip__step">
         {String(index).padStart(2, "0")}
-        <span className="bb-strip__sub">/{String(STEPS.length).padStart(2, "0")}</span>
+        <span className="bb-strip__sub">/{String(total).padStart(2, "0")}</span>
       </div>
       <div className={`bb-strip__mark ${turn ? "bb-strip__mark--turn" : ""}`}>
         <MarkLabel kind={state.mark} tone="paper" fresh={state.fresh} />

@@ -17,7 +17,7 @@ export { PikaIcon };
 
 type IconData = ComponentProps<typeof PikaIcon>["icon"];
 
-export const DESTINATION_ICON: Record<DestinationId, IconData> = {
+export const DESTINATION_ICON: Partial<Record<DestinationId, IconData>> = {
   razorpay: CreditCardIcon,
   stripe: CreditCardIcon,
   meta: WhatsappIcon,

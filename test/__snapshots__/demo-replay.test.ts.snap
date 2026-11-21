@@ -1,0 +1,190 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`demo replay > ?at=applied draws the same board as the shipped kit 1`] = `
+{
+  "cursor": 5,
+  "focus": "tunnel.url",
+  "phase": "applied",
+  "strips": {
+    "agent-env": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "google": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "meta": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "razorpay": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "stripe": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+  },
+}
+`;
+
+exports[`demo replay > ?at=drift draws the same board as the shipped kit 1`] = `
+{
+  "cursor": 0,
+  "focus": "tunnel.url",
+  "phase": "drift",
+  "strips": {
+    "agent-env": {
+      "bay": null,
+      "fresh": false,
+      "mark": "drift",
+    },
+    "google": {
+      "bay": null,
+      "fresh": false,
+      "mark": "drift",
+    },
+    "meta": {
+      "bay": null,
+      "fresh": false,
+      "mark": "drift",
+    },
+    "razorpay": {
+      "bay": null,
+      "fresh": false,
+      "mark": "drift",
+    },
+    "stripe": {
+      "bay": null,
+      "fresh": false,
+      "mark": "drift",
+    },
+  },
+}
+`;
+
+exports[`demo replay > ?at=handoff draws the same board as the shipped kit 1`] = `
+{
+  "cursor": 4,
+  "focus": "tunnel.url",
+  "phase": "handoff",
+  "strips": {
+    "agent-env": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "google": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+    "meta": {
+      "bay": "turn",
+      "fresh": false,
+      "mark": "handoff",
+      "note": "Opening WhatsApp → Configuration in your sandbox browser",
+    },
+    "razorpay": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+    "stripe": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "applied",
+      "note": undefined,
+    },
+  },
+}
+`;
+
+exports[`demo replay > ?at=planned draws the same board as the shipped kit 1`] = `
+{
+  "cursor": 0,
+  "focus": "tunnel.url",
+  "phase": "planned",
+  "strips": {
+    "agent-env": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+    "google": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+    "meta": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+    "razorpay": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+    "stripe": {
+      "bay": "plan",
+      "fresh": false,
+      "mark": "planned",
+    },
+  },
+}
+`;
+
+exports[`demo replay > ?at=verified draws the same board as the shipped kit 1`] = `
+{
+  "cursor": 5,
+  "focus": "tunnel.url",
+  "phase": "verified",
+  "strips": {
+    "agent-env": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "verified",
+      "note": "Agent restarted and accepted the origin",
+    },
+    "google": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "unexercised",
+      "note": "Origin listed. Sign-in not exercised; run bb verify --signin",
+    },
+    "meta": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "verified",
+      "note": "GET handshake echoed the challenge",
+    },
+    "razorpay": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "verified",
+      "note": "Signed payment_link.paid returned 200",
+    },
+    "stripe": {
+      "bay": "cleared",
+      "fresh": false,
+      "mark": "verified",
+      "note": "Signed checkout.session.completed returned 200",
+    },
+  },
+}
+`;

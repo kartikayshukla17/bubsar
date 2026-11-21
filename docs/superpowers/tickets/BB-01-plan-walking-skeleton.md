@@ -56,18 +56,18 @@ After this, every later slice only adds a capability. Nothing is rewired.
 
 ## Acceptance criteria
 
-- [ ] `npm pack`, then `npm i -g ./busbar-*.tgz`, then `bb --version` works on a clean shell.
-- [ ] A malformed `busbar.toml` gives a one-line error naming the key and line.
-- [ ] `bb plan --tunnel <url>` prints two Google steps (redirect URI, JS origin) with
+- [x] `npm pack`, then `npm i -g ./busbar-*.tgz`, then `bb --version` works on a clean shell.
+- [x] A malformed `busbar.toml` gives a one-line error naming the key and line.
+- [x] `bb plan --tunnel <url>` prints two Google steps (redirect URI, JS origin) with
       `from: unknown`, and exits 0.
-- [ ] With `bb ui` open, running `bb plan` moves the Google strip into the Plan bay within 1s
+- [x] With `bb ui` open, running `bb plan` moves the Google strip into the Plan bay within 1s
       without a page reload.
-- [ ] `/?at=verified` still renders the demo board identically to today (compare against
+- [x] `/?at=verified` still renders the demo board identically to today (compare against
       `.impeccable/review/desktop-verified.png`).
-- [ ] The daemon refuses non-loopback connections.
-- [ ] Unit tests: toml parsing and validation, plan computation, reducer, `Secret`
+- [x] The daemon refuses non-loopback connections.
+- [x] Unit tests: toml parsing and validation, plan computation, reducer, `Secret`
       serialization safety.
-- [ ] Definition of done checks 1–3 are wired into `npm run lint` / tests from this ticket
+- [x] Definition of done checks 1–3 are wired into `npm run lint` / tests from this ticket
       onward.
 
 ## Out of scope
@@ -80,3 +80,37 @@ Browser, Google reads or writes, login, verify, handoff.
   fields is fine; renaming forks the demo replay.
 - The UI kit showed seven destinations. Live mode shows only what `busbar.toml` declares
   (Google only for now). Check that the sector map still looks intentional with one row.
+
+## Done (2026-11-21)
+
+**Demo run for real**, from the packed tarball installed into an isolated prefix:
+`bb --version` → `busbar 0.1.0` in an `env -i` shell; `bb ui --no-open` showed the empty
+state; `bb plan --tunnel https://abcd.ngrok-free.app` in a second process moved both Google
+strips into the Plan bay without a reload. `/?at=verified` matched
+`.impeccable/review/desktop-verified.png` (same strips, marks, notes, routes, status line).
+
+**Tests (31, vitest):** `src/core/{board,secret,config,plan}.test.ts`; `test/demo-replay`
+(snapshot of all five `?at=` moments, taken before the move); `test/cli` and `test/daemon`
+spawn the built `dist/bb.js`. Daemon tests cover `/api/run`, SSE under 1s, loopback-only bind
+(checked against the LAN address) and a Host-header check against DNS rebinding.
+
+**Gates:** `npm run lint` = biome + `scripts/guard.mjs` (DoD 1–2, proven to catch planted
+violations). The UI kit never passed lint before this ticket; it does now (vendored
+`ui/fluted-glass.tsx` excluded, a few justified ignores).
+
+**Decisions made here:**
+- Steps travel with the `plan` event and live in `BoardState.steps`; the reducer no longer
+  imports demo data. `Step.path` became `from` (null = not read) / `to`.
+- Events are `{ run, seq, action }`. A new run id or a seq gap makes the SPA reload
+  `/api/run`, so it can't drift from disk. `bb plan` starts a new run each time.
+- `.busbar/` writes its own `.gitignore` (`*`), so users don't have to edit theirs.
+- `/` is live; demo moved to `?demo` / `?at=`.
+- Only `smol-toml` is a runtime dependency; the SPA ships prebuilt in `build/client/`.
+
+**Carried forward:**
+- DoD 3's "serialize a full run and scan for fixture secrets" has nothing to scan yet: no MVP
+  run holds a secret (Google rewire is all public URLs). `Secret` and its leak tests are in
+  place; add the full-run scan in the first slice that puts a secret in a run.
+- `checked` still takes its mark from the step's declared `verify`, not from a check result.
+  BB-05 should put the recorded result on the `checked` event (DoD 4).
+

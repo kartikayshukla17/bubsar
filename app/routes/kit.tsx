@@ -6,14 +6,25 @@ import { MARK_LABEL, Mark } from "~/components/mark";
 import { MarkLegend, SectorMap } from "~/components/sector-map";
 import { Strip } from "~/components/strip";
 import { ShaderBackground } from "~/components/ui/fluted-glass";
-import { type Mark as MarkKind, STEPS, type StripState, initialBoard } from "~/lib/board";
+import type { Mark as MarkKind, StripState } from "~/lib/board";
+import { DEMO_SCENE, demoBoard, STEPS } from "~/lib/demo";
 import type { Route } from "./+types/kit";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "busbar · component kit" }];
 }
 
-const ALL_MARKS: MarkKind[] = ["drift", "planned", "active", "handoff", "applied", "checking", "verified", "unexercised", "unknown"];
+const ALL_MARKS: MarkKind[] = [
+  "drift",
+  "planned",
+  "active",
+  "handoff",
+  "applied",
+  "checking",
+  "verified",
+  "unexercised",
+  "unknown",
+];
 
 function Row({ title, note, children }: { title: string; note: string; children: ReactNode }) {
   return (
@@ -27,7 +38,12 @@ function Row({ title, note, children }: { title: string; note: string; children:
   );
 }
 
-const st = (mark: MarkKind, note?: string): StripState => ({ bay: "cleared", mark, fresh: false, note });
+const st = (mark: MarkKind, note?: string): StripState => ({
+  bay: "cleared",
+  mark,
+  fresh: false,
+  note,
+});
 
 export default function Kit() {
   return (
@@ -36,11 +52,14 @@ export default function Kit() {
         <div>
           <div className="flex items-center gap-3">
             <BusbarMark size={30} />
-            <h1 className="font-display text-[44px] font-semibold leading-none tracking-[-0.035em]">busbar kit</h1>
+            <h1 className="font-display text-[44px] font-semibold leading-none tracking-[-0.035em]">
+              busbar kit
+            </h1>
           </div>
           <p className="mt-4 max-w-[60ch] text-mute">
-            The strip-board components behind <span className="text-paper">bb ui</span>, the landing page and the
-            demo video. Ink 70, paper 20, signal 10. State is always a mark, never only a colour.
+            The strip-board components behind <span className="text-paper">bb ui</span>, the landing
+            page and the demo video. Ink 70, paper 20, signal 10. State is always a mark, never only
+            a colour.
           </p>
         </div>
         <a href="/" className="bb-btn">
@@ -48,7 +67,10 @@ export default function Kit() {
         </a>
       </header>
 
-      <Row title="Palette" note="User-pinned. Signal never sets text on paper: it fails contrast there.">
+      <Row
+        title="Palette"
+        note="User-pinned. Signal never sets text on paper: it fails contrast there."
+      >
         <div className="grid grid-cols-[7fr_2fr_1fr] overflow-hidden rounded-[7px] border border-rule">
           <div className="h-28 bg-ink p-3 text-[12.5px]">
             <span className="font-semibold">Ink</span>
@@ -65,17 +87,25 @@ export default function Kit() {
         </div>
       </Row>
 
-      <Row title="Type" note="Bricolage Grotesque for names and counts. Figtree for everything you read.">
+      <Row
+        title="Type"
+        note="Bricolage Grotesque for names and counts. Figtree for everything you read."
+      >
         <div className="grid gap-4">
-          <p className="font-display text-[56px] font-semibold leading-[0.95] tracking-[-0.04em]">One value. Five consoles.</p>
+          <p className="font-display text-[56px] font-semibold leading-[0.95] tracking-[-0.04em]">
+            One value. Five consoles.
+          </p>
           <p className="max-w-[62ch] text-[15px] leading-relaxed text-mute">
-            Figtree carries the working text: strip fields, notes, the ledger. On a strip every line is 13px, and rank
-            comes from weight, case and reversal instead of size.
+            Figtree carries the working text: strip fields, notes, the ledger. On a strip every line
+            is 13px, and rank comes from weight, case and reversal instead of size.
           </p>
         </div>
       </Row>
 
-      <Row title="Marks" note="Stamp, strike, open box, ring. Readable in greyscale and on both surfaces.">
+      <Row
+        title="Marks"
+        note="Stamp, strike, open box, ring. Readable in greyscale and on both surfaces."
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <ul className="grid gap-3 rounded-[7px] border border-rule bg-ink-2 p-4">
             {ALL_MARKS.map((k) => (
@@ -96,27 +126,68 @@ export default function Kit() {
         </div>
       </Row>
 
-      <Row title="Strips" note="One write each. The ink holder is the executor tier: CLI, API or your sandbox browser (WEB).">
+      <Row
+        title="Strips"
+        note="One write each. The ink holder is the executor tier: CLI, API or your sandbox browser (WEB)."
+      >
         <div className="bb-kit-rack grid gap-[6px]">
-          <Strip step={STEPS[0]} state={{ bay: "plan", mark: "drift", fresh: false }} />
-          <Strip step={STEPS[1]} state={{ bay: "plan", mark: "planned", fresh: false }} />
-          <Strip step={STEPS[2]} state={st("active", STEPS[2].activeNote)} />
-          <Strip step={STEPS[0]} state={st("applied")} />
-          <Strip step={STEPS[1]} state={st("verified", STEPS[1].verify.note)} />
-          <Strip step={STEPS[4]} state={st("unexercised", STEPS[4].verify.note)} />
+          <Strip
+            step={STEPS[0]}
+            index={1}
+            total={STEPS.length}
+            state={{ bay: "plan", mark: "drift", fresh: false }}
+          />
+          <Strip
+            step={STEPS[1]}
+            index={2}
+            total={STEPS.length}
+            state={{ bay: "plan", mark: "planned", fresh: false }}
+          />
+          <Strip
+            step={STEPS[2]}
+            index={3}
+            total={STEPS.length}
+            state={st("active", STEPS[2].activeNote)}
+          />
+          <Strip step={STEPS[0]} index={1} total={STEPS.length} state={st("applied")} />
+          <Strip
+            step={STEPS[1]}
+            index={2}
+            total={STEPS.length}
+            state={st("verified", STEPS[1].verify.note)}
+          />
+          <Strip
+            step={STEPS[4]}
+            index={5}
+            total={STEPS.length}
+            state={st("unexercised", STEPS[4].verify.note)}
+          />
           <div className="pl-[14px] pt-2">
-            <Strip step={STEPS[3]} state={{ bay: "turn", mark: "handoff", fresh: false }} cocked />
+            <Strip
+              step={STEPS[3]}
+              index={4}
+              total={STEPS.length}
+              state={{ bay: "turn", mark: "handoff", fresh: false }}
+              cocked
+            />
           </div>
-          <Strip step={STEPS[2]} state={st("applied")} dimmed />
+          <Strip step={STEPS[2]} index={3} total={STEPS.length} state={st("applied")} dimmed />
         </div>
       </Row>
 
-      <Row title="Bays" note="Racks with rails at the slot pitch. Strips fill whole slots; the count is right-aligned.">
+      <Row
+        title="Bays"
+        note="Racks with rails at the slot pitch. Strips fill whole slots; the count is right-aligned."
+      >
         <div className="grid gap-3 md:grid-cols-2">
-          <Bay name="Plan" count={0} empty="Press Plan to see every write before anything changes." />
+          <Bay
+            name="Plan"
+            count={0}
+            empty="Press Plan to see every write before anything changes."
+          />
           <Bay name="Cleared" count={2} empty="No writes yet.">
-            <Strip step={STEPS[0]} state={st("verified")} />
-            <Strip step={STEPS[2]} state={st("applied")} />
+            <Strip step={STEPS[0]} index={1} total={STEPS.length} state={st("verified")} />
+            <Strip step={STEPS[2]} index={3} total={STEPS.length} state={st("applied")} />
           </Bay>
         </div>
       </Row>
@@ -149,16 +220,22 @@ export default function Kit() {
         </div>
       </Row>
 
-      <Row title="Sector" note="Values left, registrations right. The traced value lights as a busbar; the rest dims.">
+      <Row
+        title="Sector"
+        note="Values left, registrations right. The traced value lights as a busbar; the rest dims."
+      >
         <div className="max-w-[640px]">
-          <SectorMap board={initialBoard} onFocus={() => {}} />
+          <SectorMap scene={DEMO_SCENE} board={demoBoard} onFocus={() => {}} />
           <div className="mt-3">
             <MarkLegend />
           </div>
         </div>
       </Row>
 
-      <Row title="Fluted glass" note="The one material. Behind the sector only, still under reduced motion. Paper Shaders, Apache-2.0.">
+      <Row
+        title="Fluted glass"
+        note="The one material. Behind the sector only, still under reduced motion. Paper Shaders, Apache-2.0."
+      >
         <div className="relative h-56 overflow-hidden rounded-[7px] border border-rule">
           <ShaderBackground />
         </div>

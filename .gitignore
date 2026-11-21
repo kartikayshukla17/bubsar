@@ -9,3 +9,4 @@
 # busbar run state (never committed)
 .busbar/
 *.tgz
+/dist/

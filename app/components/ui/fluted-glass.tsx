@@ -309,7 +309,13 @@ export function ShaderBackground({
       raf = 0;
       if (disposed || !visible || !inView) return;
       resizeCanvas();
-      ctx.uniform4f(sceneLoc, cv.width, cv.height, ((now - start) / 1000) * timeScale, palette.length);
+      ctx.uniform4f(
+        sceneLoc,
+        cv.width,
+        cv.height,
+        ((now - start) / 1000) * timeScale,
+        palette.length,
+      );
       ctx.drawArrays(ctx.TRIANGLES, 0, 3);
       if (timeScale > 0) requestRender();
     }

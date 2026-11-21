@@ -1,10 +1,19 @@
 import { EyeOffIcon } from "@pikaicons/core-free";
 import { PikaIcon } from "~/components/icons";
 import { MARK_LABEL, Mark } from "~/components/mark";
-import { type BoardState, DESTINATIONS, VALUES, type ValueId, valueMark } from "~/lib/board";
+import { type BoardState, type Scene, type ValueId, valueMark } from "~/lib/board";
 
 /** Every value busbar holds, where it lives, and whether that's proven. Secrets show as fingerprints. */
-export function Ledger({ board, onFocus }: { board: BoardState; onFocus: (v: ValueId) => void }) {
+export function Ledger({
+  scene,
+  board,
+  onFocus,
+}: {
+  scene: Scene;
+  board: BoardState;
+  onFocus: (v: ValueId) => void;
+}) {
+  const { destinations: DESTINATIONS, values: VALUES } = scene;
   return (
     <div className="overflow-x-auto">
       <table className="bb-ledger min-w-[760px]">
@@ -46,7 +55,9 @@ export function Ledger({ board, onFocus }: { board: BoardState; onFocus: (v: Val
                       <span className="font-mono text-[12.5px] text-paper">{v.fingerprint}</span>
                     </span>
                   ) : (
-                    <span className="font-mono text-[12.5px]">{v.literal?.replace("https://", "")}</span>
+                    <span className="font-mono text-[12.5px]">
+                      {v.literal?.replace("https://", "")}
+                    </span>
                   )}
                 </td>
                 <td>

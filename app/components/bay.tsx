@@ -21,11 +21,17 @@ export function Bay({
           {name}
           {hint ? <span className="bb-bay__hint">{hint}</span> : null}
         </h3>
-        <span key={count} className="bb-bay__count t-swap" data-zero={count === 0 ? "true" : undefined}>
+        <span
+          key={count}
+          className="bb-bay__count t-swap"
+          data-zero={count === 0 ? "true" : undefined}
+        >
           {count}
         </span>
       </header>
-      <div className="bb-rack">{count === 0 ? <div className="bb-slot-empty">{empty}</div> : children}</div>
+      <div className="bb-rack">
+        {count === 0 ? <div className="bb-slot-empty">{empty}</div> : children}
+      </div>
     </section>
   );
 }

@@ -1,11 +1,24 @@
-import { CopyCopiedIcon, CopyIcon, ExternalLinkSquareIcon, LockCloseIcon } from "@pikaicons/core-free";
+import {
+  CopyCopiedIcon,
+  CopyIcon,
+  ExternalLinkSquareIcon,
+  LockCloseIcon,
+} from "@pikaicons/core-free";
 import { useEffect, useRef, useState } from "react";
 import { PikaIcon } from "~/components/icons";
-import { NEW_TUNNEL } from "~/lib/board";
+import { NEW_TUNNEL } from "~/lib/demo";
 
 const CLEAR_AFTER = 30;
 
-function CopyButton({ text, label, secret = false }: { text: string; label: string; secret?: boolean }) {
+function CopyButton({
+  text,
+  label,
+  secret = false,
+}: {
+  text: string;
+  label: string;
+  secret?: boolean;
+}) {
   const [left, setLeft] = useState<number | null>(null);
   const timer = useRef<number | null>(null);
 
@@ -61,14 +74,16 @@ export function Handoff({ onDone, onSkip }: { onDone: () => void; onSkip: () => 
           Meta moved this form. Your turn.
         </h4>
         <p className="mt-2 text-mute">
-          busbar opened WhatsApp → Configuration in your sandbox browser, but the Callback URL field isn't where
-          the recipe expects it. Rather than guess on a live app, it stopped here. Google is queued behind this strip.
+          busbar opened WhatsApp → Configuration in your sandbox browser, but the Callback URL field
+          isn't where the recipe expects it. Rather than guess on a live app, it stopped here.
+          Google is queued behind this strip.
         </p>
         <ol className="mt-5 grid gap-4">
           <li className="grid gap-2 sm:grid-cols-[22px_1fr_auto] sm:items-center">
             <span className="font-display font-semibold text-signal">1</span>
             <span>
-              Open <strong className="font-semibold">WhatsApp → Configuration → Webhook → Edit</strong>
+              Open{" "}
+              <strong className="font-semibold">WhatsApp → Configuration → Webhook → Edit</strong>
             </span>
             <a
               className="bb-btn"
@@ -84,7 +99,9 @@ export function Handoff({ onDone, onSkip }: { onDone: () => void; onSkip: () => 
             <span className="font-display font-semibold text-signal">2</span>
             <span className="min-w-0">
               Callback URL
-              <span className="mt-0.5 block truncate font-mono text-[12.5px] text-mute">{callback}</span>
+              <span className="mt-0.5 block truncate font-mono text-[12.5px] text-mute">
+                {callback}
+              </span>
             </span>
             <CopyButton text={callback} label="Copy URL" />
           </li>
@@ -102,7 +119,8 @@ export function Handoff({ onDone, onSkip }: { onDone: () => void; onSkip: () => 
           <li className="grid gap-2 sm:grid-cols-[22px_1fr] sm:items-center">
             <span className="font-display font-semibold text-signal">4</span>
             <span>
-              Click <strong className="font-semibold">Verify and save</strong> in Meta, then come back here.
+              Click <strong className="font-semibold">Verify and save</strong> in Meta, then come
+              back here.
             </span>
           </li>
         </ol>

@@ -1,24 +1,27 @@
-import { ShaderBackground } from "~/components/ui/fluted-glass";
+import { GlobeIcon } from "@pikaicons/core-free";
 import { DESTINATION_ICON, PikaIcon } from "~/components/icons";
 import { MARK_LABEL, Mark } from "~/components/mark";
-import { type BoardState, DESTINATIONS, type Mark as MarkKind, VALUES, type ValueId, routeMark } from "~/lib/board";
+import { ShaderBackground } from "~/components/ui/fluted-glass";
+import {
+  type BoardState,
+  type Mark as MarkKind,
+  routeMark,
+  type Scene,
+  type ValueId,
+} from "~/lib/board";
 
 const W = 600;
 const H = 500;
 const SRC_X = 214; // where a source's stub leaves its label
 const DEST_X = 404; // where a route lands at a destination label
-const BUS_X: Record<ValueId, number> = {
-  "tunnel.url": 238,
-  WHATSAPP_VERIFY_TOKEN: 258,
-  RAZORPAY_WEBHOOK_SECRET: 278,
-  DATABASE_URL: 298,
-  AGENT_URL: 318,
-};
+/** Each value's bus runs at its own x, 20 units apart. */
+const busX = (index: number) => 238 + index * 20;
 
 /** Let long env var names break at underscores instead of truncating. */
 function breakable(name: string) {
   const parts = name.split("_");
   return parts.map((p, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: a fixed split of a static name; parts never reorder
     <span key={`${p}-${i}`}>
       {p}
       {i < parts.length - 1 ? (
@@ -32,7 +35,8 @@ function breakable(name: string) {
 const pct = (v: number, of: number) => `${(v / of) * 100}%`;
 
 function strokeFor(mark: MarkKind, focused: boolean) {
-  if (!focused) return { stroke: "rgb(255 255 255 / 0.16)", width: 1, dash: undefined, flow: false };
+  if (!focused)
+    return { stroke: "rgb(255 255 255 / 0.16)", width: 1, dash: undefined, flow: false };
   switch (mark) {
     case "verified":
       return { stroke: "#c6f432", width: 2.5, dash: undefined, flow: false };
@@ -55,15 +59,19 @@ function strokeFor(mark: MarkKind, focused: boolean) {
  * The focused value draws as a lit busbar with taps; everything unrelated dims.
  */
 export function SectorMap({
+  scene,
   board,
   onFocus,
   glass = true,
 }: {
+  scene: Scene;
   board: BoardState;
   onFocus: (value: ValueId) => void;
   glass?: boolean;
 }) {
+  const { destinations: DESTINATIONS, values: VALUES } = scene;
   const focused = VALUES.find((v) => v.id === board.focus) ?? VALUES[0];
+  if (!focused) return null;
   const focusDests = new Set(focused.routes);
 
   // Draw unfocused routes first so the lit bus sits on top.
@@ -77,11 +85,18 @@ export function SectorMap({
         </div>
       ) : null}
       <div className="bb-sector__plot">
-        <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="absolute inset-0 h-full w-full"
+          aria-hidden="true"
+        >
           {ordered.map((value) => {
             const isFocus = value.id === focused.id;
-            const bx = BUS_X[value.id];
-            const ys = [value.y, ...value.routes.map((d) => DESTINATIONS.find((x) => x.id === d)?.y ?? 0)];
+            const bx = busX(VALUES.indexOf(value));
+            const ys = [
+              value.y,
+              ...value.routes.map((d) => DESTINATIONS.find((x) => x.id === d)?.y ?? 0),
+            ];
             const top = Math.min(...ys);
             const bottom = Math.max(...ys);
             return (
@@ -115,7 +130,16 @@ export function SectorMap({
                         strokeWidth={st.width}
                         strokeDasharray={st.dash}
                       />
-                      {isFocus ? <rect x={bx - 4} y={dest.y - 4} width="8" height="8" rx="1.5" fill="#c6f432" /> : null}
+                      {isFocus ? (
+                        <rect
+                          x={bx - 4}
+                          y={dest.y - 4}
+                          width="8"
+                          height="8"
+                          rx="1.5"
+                          fill="#c6f432"
+                        />
+                      ) : null}
                     </g>
                   );
                 })}
@@ -131,7 +155,11 @@ export function SectorMap({
               key={value.id}
               type="button"
               className="bb-node bb-node--source"
-              style={{ top: pct(value.y, H), right: pct(W - SRC_X + 4, W), maxWidth: pct(SRC_X - 8, W) }}
+              style={{
+                top: pct(value.y, H),
+                right: pct(W - SRC_X + 4, W),
+                maxWidth: pct(SRC_X - 8, W),
+              }}
               aria-pressed={isFocus}
               onClick={() => onFocus(value.id)}
             >
@@ -154,7 +182,11 @@ export function SectorMap({
               data-dimmed={linked ? undefined : "true"}
             >
               <span className="bb-node__icon grid h-7 w-7 flex-none place-items-center rounded-[5px] bg-ink-3 text-paper ring-1 ring-rule">
-                <PikaIcon icon={DESTINATION_ICON[dest.id]} size={15} strokeWidth={1.8} />
+                <PikaIcon
+                  icon={DESTINATION_ICON[dest.id] ?? GlobeIcon}
+                  size={15}
+                  strokeWidth={1.8}
+                />
               </span>
               <span className="flex flex-col">
                 <span className="bb-node__name">{dest.name}</span>

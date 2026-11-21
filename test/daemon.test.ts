@@ -1,0 +1,93 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import { request } from "node:http";
+import { networkInterfaces } from "node:os";
+import { afterEach, describe, expect, it } from "vitest";
+import { BB, project } from "./helpers/project";
+
+const TUNNEL = "https://abcd.ngrok-free.app";
+const running: ChildProcess[] = [];
+afterEach(() => {
+  for (const c of running.splice(0)) c.kill();
+});
+
+/** Start `bb ui` in a project and resolve with the URL it prints. */
+function ui(dir: string): Promise<URL> {
+  const child = spawn(process.execPath, [BB, "ui", "--no-open"], { cwd: dir });
+  running.push(child);
+  return new Promise((resolve, reject) => {
+    let out = "";
+    child.stdout.on("data", (d) => {
+      out += d;
+      const m = out.match(/http:\/\/127\.0\.0\.1:\d+/);
+      if (m) resolve(new URL(m[0]));
+    });
+    child.on("exit", (code) => reject(new Error(`bb ui exited ${code}`)));
+  });
+}
+
+function get(url: URL, headers: Record<string, string> = {}) {
+  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+    request(url, { headers }, (res) => {
+      let body = "";
+      res.on("data", (d) => (body += d));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+    })
+      .on("error", reject)
+      .end();
+  });
+}
+
+describe("bb ui daemon", () => {
+  it("serves the current run snapshot at /api/run", async () => {
+    const p = project();
+    p.bb("plan", "--tunnel", TUNNEL);
+    const base = await ui(p.dir);
+    const r = await get(new URL("/api/run", base));
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual(JSON.parse(p.read(".busbar/run.json")));
+  });
+
+  it("streams a plan made in another terminal within a second", async () => {
+    const p = project();
+    const base = await ui(p.dir);
+    const first = new Promise<{ run: string; seq: number; action: { type: string } }>(
+      (resolve, reject) => {
+        request(new URL("/api/events", base), (res) => {
+          expect(res.headers["content-type"]).toBe("text/event-stream");
+          let buf = "";
+          res.on("data", (d) => {
+            buf += d;
+            const m = buf.match(/^data: (.+)$/m);
+            if (m) resolve(JSON.parse(m[1]));
+          });
+        })
+          .on("error", reject)
+          .end();
+      },
+    );
+    await new Promise((r) => setTimeout(r, 100)); // let the stream open
+    const t0 = Date.now();
+    p.bb("plan", "--tunnel", TUNNEL);
+    const event = await first;
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(event.action.type).toBe("plan");
+    expect(event.run).toBe(JSON.parse(p.read(".busbar/run.json")).run);
+  });
+
+  it("listens on loopback only", async () => {
+    const lan = Object.values(networkInterfaces())
+      .flat()
+      .find((i) => i && i.family === "IPv4" && !i.internal);
+    if (!lan) return; // no non-loopback interface on this machine
+    const base = await ui(project().dir);
+    const remote = new URL(base);
+    remote.hostname = lan.address;
+    await expect(get(new URL("/api/run", remote))).rejects.toMatchObject({ code: "ECONNREFUSED" });
+  });
+
+  it("refuses requests addressed to another host name (DNS rebinding)", async () => {
+    const base = await ui(project().dir);
+    const r = await get(new URL("/api/run", base), { Host: `attacker.example:${base.port}` });
+    expect(r.status).toBe(403);
+  });
+});

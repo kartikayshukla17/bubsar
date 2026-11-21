@@ -1,36 +1,49 @@
 {
-  "name": "@busbar/ui",
-  "private": true,
-  "type": "module",
+  "name": "busbar",
+  "version": "0.1.0",
+  "description": "Wire cloud providers together, and prove it worked.",
   "license": "MIT",
+  "type": "module",
+  "bin": {
+    "bb": "dist/bb.js"
+  },
+  "files": [
+    "dist/",
+    "build/client/"
+  ],
   "engines": {
     "node": ">=22.22.0"
   },
   "scripts": {
-    "build": "react-router build",
+    "build": "react-router build && node scripts/build-cli.mjs",
     "dev": "react-router dev",
     "typecheck": "react-router typegen && tsc",
-    "lint": "biome check .",
-    "format": "biome format --write ."
+    "lint": "biome check . && node scripts/guard.mjs",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "prepack": "npm run build"
   },
   "dependencies": {
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/figtree": "^5.3.0",
     "@pikaicons/core-free": "^0.1.0",
     "@pikaicons/react": "^0.1.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "react-router": "^8.5.2"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.6.8",
     "@react-router/dev": "^8.5.2",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^8.5.2",
     "tailwindcss": "^4.3.5",
     "typescript": "^5.9.3",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

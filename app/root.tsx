@@ -1,6 +1,13 @@
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/figtree";
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+} from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -49,7 +56,10 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let details = "busbar hit an unexpected error. Your providers were not touched.";
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "No such page" : "Error";
-    details = error.status === 404 ? "bb ui serves the board at / and the component kit at /kit." : error.statusText || details;
+    details =
+      error.status === 404
+        ? "bb ui serves the board at / and the component kit at /kit."
+        : error.statusText || details;
   } else if (import.meta.env.DEV && error instanceof Error) {
     details = error.message;
   }

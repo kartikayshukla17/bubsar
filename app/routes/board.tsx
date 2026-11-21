@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Bay } from "~/components/bay";
 import { FlightBar } from "~/components/flight-bar";
@@ -10,21 +10,20 @@ import {
   type Action,
   type BayId,
   type BoardState,
-  type Moment,
-  OLD_TUNNEL,
-  boardAt,
-  STEPS,
-  type ValueId,
   initialBoard,
+  layout,
   reduce,
-  short,
+  type Scene,
   stepTouches,
+  type ValueId,
 } from "~/lib/board";
+import { boardAt, DEMO_SCENE, demoBoard, type Moment, OLD_TUNNEL, short } from "~/lib/demo";
+import type { Run, RunEvent } from "../../src/core/run";
 import type { Route } from "./+types/board";
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: "busbar · enquiry-to-paid" },
+    { title: "busbar" },
     { name: "description", content: "Wire cloud providers together, and prove it worked." },
   ];
 }
@@ -37,9 +36,11 @@ function travel(fn: () => void) {
   doc.startViewTransition(() => flushSync(fn));
 }
 
-function statusLine(s: BoardState): { text: string; live: boolean } {
-  const cleared = STEPS.filter((st) => s.strips[st.id].bay === "cleared").length;
-  const busy = STEPS.find((st) => ["active", "checking"].includes(s.strips[st.id].mark));
+type Status = { text: string; live: boolean };
+
+function demoStatus(s: BoardState): Status {
+  const cleared = s.steps.filter((st) => s.strips[st.id].bay === "cleared").length;
+  const busy = s.steps.find((st) => ["active", "checking"].includes(s.strips[st.id].mark));
   switch (s.phase) {
     case "drift":
       return {
@@ -52,9 +53,15 @@ function statusLine(s: BoardState): { text: string; live: boolean } {
         live: false,
       };
     case "applying":
-      return { text: busy ? `${busy.provider}: ${busy.activeNote}` : `${cleared} of 5 written`, live: true };
+      return {
+        text: busy ? `${busy.provider}: ${busy.activeNote}` : `${cleared} of 5 written`,
+        live: true,
+      };
     case "handoff":
-      return { text: "Paused on Meta. One strip needs you; Google is queued behind it.", live: false };
+      return {
+        text: "Paused on Meta. One strip needs you; Google is queued behind it.",
+        live: false,
+      };
     case "applied":
       return { text: "All 5 written. Nothing turns green until bb verify proves it.", live: false };
     case "verifying":
@@ -67,50 +74,70 @@ function statusLine(s: BoardState): { text: string; live: boolean } {
   }
 }
 
-export default function Board() {
-  const [board, dispatch] = useReducer(reduce, initialBoard, (init) => {
-    const at = new URLSearchParams(window.location.search).get("at");
-    const moments: Moment[] = ["drift", "planned", "handoff", "applied", "verified"];
-    return at && (moments as string[]).includes(at) ? boardAt(at as Moment) : init;
-  });
-  const send = (a: Action) => travel(() => dispatch(a));
-  const focus = (value: ValueId) => dispatch({ type: "focus", value });
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
-  // Apply runner: one strip at a time, plan → active → cleared (or your turn).
-  useEffect(() => {
-    if (board.phase !== "applying") return;
-    const step = STEPS[board.cursor];
-    let t: number | undefined;
-    if (!step) {
-      t = window.setTimeout(() => dispatch({ type: "apply-done" }), 400);
-    } else {
-      const bay = board.strips[step.id].bay;
-      if (bay === "plan") t = window.setTimeout(() => send({ type: "activate", id: step.id }), 450);
-      else if (bay === "active") t = window.setTimeout(() => send({ type: "settle", id: step.id }), 1500);
+function liveStatus(s: BoardState): Status {
+  const n = s.steps.length;
+  const busy = s.steps.find((st) => ["active", "checking"].includes(s.strips[st.id].mark));
+  switch (s.phase) {
+    case "drift":
+      return { text: "No plan yet in this project.", live: false };
+    case "planned": {
+      const unread = s.steps.filter((st) => st.from === null).length;
+      return {
+        text: `Plan ready: ${plural(n, "write")}. Nothing has changed yet.${unread ? ` ${unread} current ${unread === 1 ? "entry is" : "entries are"} unknown: busbar hasn't read the console.` : ""}`,
+        live: false,
+      };
     }
-    return () => window.clearTimeout(t);
-  }, [board]);
+    case "applying":
+    case "verifying":
+      return { text: busy ? `${busy.provider}: ${busy.activeNote}` : "Working", live: true };
+    case "handoff":
+      return { text: "Paused. One strip needs you.", live: false };
+    case "applied":
+      return {
+        text: `${plural(n, "write")} made. Nothing turns green until bb verify proves it.`,
+        live: false,
+      };
+    case "verified":
+      return { text: "Verify finished.", live: false };
+  }
+}
 
-  // Verify runner: prove each cleared strip in order.
-  useEffect(() => {
-    if (board.phase !== "verifying") return;
-    const checking = STEPS.find((st) => board.strips[st.id].mark === "checking");
-    const next = STEPS.find((st) => board.strips[st.id].mark === "applied");
-    let t: number | undefined;
-    if (checking) t = window.setTimeout(() => dispatch({ type: "checked", id: checking.id }), 950);
-    else if (next) t = window.setTimeout(() => dispatch({ type: "check", id: next.id }), 220);
-    else t = window.setTimeout(() => dispatch({ type: "verify-done" }), 300);
-    return () => window.clearTimeout(t);
-  }, [board]);
-
-  const inBay = (bay: BayId) => STEPS.filter((st) => board.strips[st.id].bay === bay);
-  const status = statusLine(board);
+function BoardView({
+  scene,
+  board,
+  status,
+  send,
+  controls,
+  emptyPlan,
+  footer,
+}: {
+  scene: Scene;
+  board: BoardState;
+  status: Status;
+  send: (a: Action) => void;
+  controls: {
+    onPlan: () => void;
+    onApply: () => void;
+    onVerify: () => void;
+    onDiscard: () => void;
+  };
+  emptyPlan: string;
+  footer?: React.ReactNode;
+}) {
+  const focus = (value: ValueId) => send({ type: "focus", value });
+  const inBay = (bay: BayId) => board.steps.filter((st) => board.strips[st.id]?.bay === bay);
+  const total = board.steps.length;
+  const position = (id: string) => board.steps.findIndex((s) => s.id === id) + 1;
 
   const renderStrips = (bay: BayId) =>
     inBay(bay).map((st) => (
       <Strip
         key={st.id}
         step={st}
+        index={position(st.id)}
+        total={total}
         state={board.strips[st.id]}
         dimmed={!stepTouches(st, board.focus)}
         cocked={bay === "turn"}
@@ -119,13 +146,7 @@ export default function Board() {
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 pb-20 sm:px-6">
-      <FlightBar
-        phase={board.phase}
-        onPlan={() => send({ type: "plan" })}
-        onApply={() => dispatch({ type: "start" })}
-        onVerify={() => dispatch({ type: "verify-start" })}
-        onDiscard={() => send({ type: "discard" })}
-      />
+      <FlightBar scene={scene} phase={board.phase} {...controls} />
 
       <p className="flex min-h-[44px] items-center gap-3 py-3 text-[13px]" aria-live="polite">
         <span
@@ -135,11 +156,7 @@ export default function Board() {
         <span key={status.text} className={`t-swap ${status.live ? "t-shimmer" : "text-mute"}`}>
           {status.text}
         </span>
-        {board.phase === "verified" ? (
-          <button type="button" className="ml-auto text-mute underline hover:text-paper" onClick={() => send({ type: "reset" })}>
-            Replay demo
-          </button>
-        ) : null}
+        {footer}
       </p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(400px,5fr)_7fr]">
@@ -147,11 +164,13 @@ export default function Board() {
           <div className="mb-3 flex items-baseline justify-between gap-3 px-1">
             <h2 id="sector-h" className="font-display text-[15px] font-semibold tracking-[-0.01em]">
               Wiring
-              <span className="ml-2.5 font-sans text-[13px] font-normal text-mute">{board.focus}</span>
+              <span className="ml-2.5 font-sans text-[13px] font-normal text-mute">
+                {board.focus}
+              </span>
             </h2>
             <span className="text-[12.5px] text-mute">Pick a value to trace it</span>
           </div>
-          <SectorMap board={board} onFocus={focus} />
+          <SectorMap scene={scene} board={board} onFocus={focus} />
           <div className="mt-3 px-1">
             <MarkLegend />
           </div>
@@ -161,7 +180,7 @@ export default function Board() {
           <Bay
             name="Plan"
             count={inBay("plan").length}
-            empty={board.phase === "drift" ? "Press Plan to see every write before anything changes." : "Nothing queued."}
+            empty={board.phase === "drift" ? emptyPlan : "Nothing queued."}
           >
             {renderStrips("plan")}
           </Bay>
@@ -176,11 +195,20 @@ export default function Board() {
           >
             {inBay("turn").map((st) => (
               <div key={st.id}>
-                <Strip step={st} state={board.strips[st.id]} cocked dimmed={!stepTouches(st, board.focus)} />
-                <Handoff
-                  onDone={() => send({ type: "handoff-done", id: st.id })}
-                  onSkip={() => send({ type: "handoff-done", id: st.id })}
+                <Strip
+                  step={st}
+                  index={position(st.id)}
+                  total={total}
+                  state={board.strips[st.id]}
+                  cocked
+                  dimmed={!stepTouches(st, board.focus)}
                 />
+                {scene.live ? null : (
+                  <Handoff
+                    onDone={() => send({ type: "handoff-done", id: st.id })}
+                    onSkip={() => send({ type: "handoff-done", id: st.id })}
+                  />
+                )}
               </div>
             ))}
           </Bay>
@@ -195,10 +223,180 @@ export default function Board() {
           <h2 id="ledger-h" className="font-display text-[22px] font-semibold tracking-[-0.02em]">
             Values
           </h2>
-          <p className="text-[13px] text-mute">Secrets appear as fingerprints. busbar never displays them, here or to the model.</p>
+          <p className="text-[13px] text-mute">
+            Secrets appear as fingerprints. busbar never displays them, here or to the model.
+          </p>
         </div>
-        <Ledger board={board} onFocus={focus} />
+        <Ledger scene={scene} board={board} onFocus={focus} />
       </section>
     </div>
   );
+}
+
+/** `?demo` and `?at=<moment>`: the synthetic kit run, for screenshots and the video. */
+function DemoBoard() {
+  const [board, dispatch] = useReducer(reduce, demoBoard, (init) => {
+    const at = new URLSearchParams(window.location.search).get("at");
+    const moments: Moment[] = ["drift", "planned", "handoff", "applied", "verified"];
+    return at && (moments as string[]).includes(at) ? boardAt(at as Moment) : init;
+  });
+  const send = (a: Action) => travel(() => dispatch(a));
+  const steps = board.steps;
+
+  // Apply runner: one strip at a time, plan → active → cleared (or your turn).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each board change schedules the next tick
+  useEffect(() => {
+    if (board.phase !== "applying") return;
+    const step = steps[board.cursor];
+    let t: number | undefined;
+    if (!step) {
+      t = window.setTimeout(() => dispatch({ type: "apply-done" }), 400);
+    } else {
+      const bay = board.strips[step.id].bay;
+      if (bay === "plan") t = window.setTimeout(() => send({ type: "activate", id: step.id }), 450);
+      else if (bay === "active")
+        t = window.setTimeout(() => send({ type: "settle", id: step.id }), 1500);
+    }
+    return () => window.clearTimeout(t);
+  }, [board]);
+
+  // Verify runner: prove each cleared strip in order.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each board change schedules the next tick
+  useEffect(() => {
+    if (board.phase !== "verifying") return;
+    const checking = steps.find((st) => board.strips[st.id].mark === "checking");
+    const next = steps.find((st) => board.strips[st.id].mark === "applied");
+    let t: number | undefined;
+    if (checking) t = window.setTimeout(() => dispatch({ type: "checked", id: checking.id }), 950);
+    else if (next) t = window.setTimeout(() => dispatch({ type: "check", id: next.id }), 220);
+    else t = window.setTimeout(() => dispatch({ type: "verify-done" }), 300);
+    return () => window.clearTimeout(t);
+  }, [board]);
+
+  return (
+    <BoardView
+      scene={DEMO_SCENE}
+      board={board}
+      status={demoStatus(board)}
+      send={send}
+      emptyPlan="Press Plan to see every write before anything changes."
+      controls={{
+        onPlan: () => send({ type: "plan" }),
+        onApply: () => dispatch({ type: "start" }),
+        onVerify: () => dispatch({ type: "verify-start" }),
+        onDiscard: () => send({ type: "discard" }),
+      }}
+      footer={
+        board.phase === "verified" ? (
+          <button
+            type="button"
+            className="ml-auto text-mute underline hover:text-paper"
+            onClick={() => send({ type: "reset" })}
+          >
+            Replay demo
+          </button>
+        ) : null
+      }
+    />
+  );
+}
+
+const PLAN_COMMAND = "bb plan --tunnel <url>";
+const NO_CONTROLS = {
+  onPlan: () => {},
+  onApply: () => {},
+  onVerify: () => {},
+  onDiscard: () => {},
+};
+
+function sceneOf(run: Run | null): Scene {
+  if (!run)
+    return { project: "busbar", destinations: [], values: [], command: PLAN_COMMAND, live: true };
+  const tunnel = run.values.find((v) => v.id === "tunnel.url")?.literal;
+  return {
+    project: run.project,
+    ...layout(run.destinations, run.values),
+    command: tunnel ? `bb plan --tunnel ${tunnel}` : PLAN_COMMAND,
+    live: true,
+  };
+}
+
+/**
+ * The default view under `bb ui`: mirrors .busbar/ through the daemon. Loads the snapshot,
+ * then reduces each streamed event. A gap, a new run, or a reconnect reloads the snapshot,
+ * so the board never drifts from the run state on disk.
+ */
+function LiveBoard() {
+  const [run, setRun] = useState<Run | null | undefined>(undefined);
+  const [offline, setOffline] = useState(false);
+  const current = useRef<Run | null>(null);
+
+  useEffect(() => {
+    let stopped = false;
+    const show = (next: Run | null) => {
+      current.current = next;
+      travel(() => setRun(next));
+    };
+    const load = async () => {
+      try {
+        const res = await fetch("/api/run", { cache: "no-store" });
+        if (stopped) return;
+        if (res.status === 404) return show(null);
+        if (res.ok) show((await res.json()) as Run);
+      } catch {
+        setOffline(true);
+      }
+    };
+    load();
+    const events = new EventSource("/api/events");
+    events.onopen = () => {
+      setOffline(false);
+      load(); // resync after a reconnect
+    };
+    events.onerror = () => setOffline(true);
+    events.onmessage = (m) => {
+      const e = JSON.parse(m.data) as RunEvent;
+      const cur = current.current;
+      if (cur && e.run === cur.run && e.seq === cur.seq + 1) {
+        show({ ...cur, seq: e.seq, board: reduce(cur.board, e.action) });
+      } else {
+        load();
+      }
+    };
+    return () => {
+      stopped = true;
+      events.close();
+    };
+  }, []);
+
+  const board = run?.board ?? initialBoard();
+  const status: Status =
+    run === undefined
+      ? { text: "Reading .busbar/ …", live: true }
+      : offline
+        ? { text: "Lost bb ui. Is it still running in your terminal?", live: false }
+        : liveStatus(board);
+
+  return (
+    <BoardView
+      scene={sceneOf(run ?? null)}
+      board={board}
+      status={status}
+      // Focus is the only thing a viewer changes, and it stays in this tab.
+      send={(a) => {
+        if (a.type === "focus" && current.current) {
+          const next = { ...current.current, board: reduce(current.current.board, a) };
+          current.current = next;
+          setRun(next);
+        }
+      }}
+      emptyPlan={`Run ${PLAN_COMMAND} to see every write before anything changes.`}
+      controls={NO_CONTROLS}
+    />
+  );
+}
+
+export default function Board() {
+  const params = new URLSearchParams(window.location.search);
+  return params.has("demo") || params.has("at") ? <DemoBoard /> : <LiveBoard />;
 }
