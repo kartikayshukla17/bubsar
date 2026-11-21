@@ -1,0 +1,168 @@
+import { FileIcon, PlayCircleIcon, ShieldCheckIcon } from "@pikaicons/core-free";
+import type { ReactNode } from "react";
+import { Bay } from "~/components/bay";
+import { BusbarMark, PikaIcon } from "~/components/icons";
+import { MARK_LABEL, Mark } from "~/components/mark";
+import { MarkLegend, SectorMap } from "~/components/sector-map";
+import { Strip } from "~/components/strip";
+import { ShaderBackground } from "~/components/ui/fluted-glass";
+import { type Mark as MarkKind, STEPS, type StripState, initialBoard } from "~/lib/board";
+import type { Route } from "./+types/kit";
+
+export function meta(_: Route.MetaArgs) {
+  return [{ title: "busbar · component kit" }];
+}
+
+const ALL_MARKS: MarkKind[] = ["drift", "planned", "active", "handoff", "applied", "checking", "verified", "unexercised", "unknown"];
+
+function Row({ title, note, children }: { title: string; note: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-5 border-t border-rule py-10 lg:grid-cols-[260px_1fr]">
+      <div>
+        <h2 className="font-display text-[19px] font-semibold tracking-[-0.015em]">{title}</h2>
+        <p className="mt-1.5 max-w-[34ch] text-[13px] text-mute">{note}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+const st = (mark: MarkKind, note?: string): StripState => ({ bay: "cleared", mark, fresh: false, note });
+
+export default function Kit() {
+  return (
+    <main className="mx-auto max-w-[1280px] px-4 pb-24 sm:px-6">
+      <header className="flex flex-wrap items-end justify-between gap-6 pb-10 pt-12">
+        <div>
+          <div className="flex items-center gap-3">
+            <BusbarMark size={30} />
+            <h1 className="font-display text-[44px] font-semibold leading-none tracking-[-0.035em]">busbar kit</h1>
+          </div>
+          <p className="mt-4 max-w-[60ch] text-mute">
+            The strip-board components behind <span className="text-paper">bb ui</span>, the landing page and the
+            demo video. Ink 70, paper 20, signal 10. State is always a mark, never only a colour.
+          </p>
+        </div>
+        <a href="/" className="bb-btn">
+          Open the board
+        </a>
+      </header>
+
+      <Row title="Palette" note="User-pinned. Signal never sets text on paper: it fails contrast there.">
+        <div className="grid grid-cols-[7fr_2fr_1fr] overflow-hidden rounded-[7px] border border-rule">
+          <div className="h-28 bg-ink p-3 text-[12.5px]">
+            <span className="font-semibold">Ink</span>
+            <span className="block font-mono text-mute">#0B0B0C · 70%</span>
+          </div>
+          <div className="h-28 bg-paper p-3 text-[12.5px] text-ink">
+            <span className="font-semibold">Paper</span>
+            <span className="block font-mono text-graphite">#FFFFFF · 20%</span>
+          </div>
+          <div className="h-28 bg-signal p-3 text-[12.5px] text-ink">
+            <span className="font-semibold">Signal</span>
+            <span className="block font-mono">#C6F432</span>
+          </div>
+        </div>
+      </Row>
+
+      <Row title="Type" note="Bricolage Grotesque for names and counts. Figtree for everything you read.">
+        <div className="grid gap-4">
+          <p className="font-display text-[56px] font-semibold leading-[0.95] tracking-[-0.04em]">One value. Five consoles.</p>
+          <p className="max-w-[62ch] text-[15px] leading-relaxed text-mute">
+            Figtree carries the working text: strip fields, notes, the ledger. On a strip every line is 13px, and rank
+            comes from weight, case and reversal instead of size.
+          </p>
+        </div>
+      </Row>
+
+      <Row title="Marks" note="Stamp, strike, open box, ring. Readable in greyscale and on both surfaces.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid gap-3 rounded-[7px] border border-rule bg-ink-2 p-4">
+            {ALL_MARKS.map((k) => (
+              <li key={k} className="flex items-center gap-3 text-[13px]">
+                <Mark kind={k} size={18} />
+                {MARK_LABEL[k]}
+              </li>
+            ))}
+          </ul>
+          <ul className="grid gap-3 rounded-[7px] bg-paper p-4 text-ink">
+            {ALL_MARKS.map((k) => (
+              <li key={k} className="flex items-center gap-3 text-[13px] font-semibold">
+                <Mark kind={k} tone="paper" size={18} />
+                {MARK_LABEL[k]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Row>
+
+      <Row title="Strips" note="One write each. The ink holder is the executor tier: CLI, API or your sandbox browser (WEB).">
+        <div className="bb-kit-rack grid gap-[6px]">
+          <Strip step={STEPS[0]} state={{ bay: "plan", mark: "drift", fresh: false }} />
+          <Strip step={STEPS[1]} state={{ bay: "plan", mark: "planned", fresh: false }} />
+          <Strip step={STEPS[2]} state={st("active", STEPS[2].activeNote)} />
+          <Strip step={STEPS[0]} state={st("applied")} />
+          <Strip step={STEPS[1]} state={st("verified", STEPS[1].verify.note)} />
+          <Strip step={STEPS[4]} state={st("unexercised", STEPS[4].verify.note)} />
+          <div className="pl-[14px] pt-2">
+            <Strip step={STEPS[3]} state={{ bay: "turn", mark: "handoff", fresh: false }} cocked />
+          </div>
+          <Strip step={STEPS[2]} state={st("applied")} dimmed />
+        </div>
+      </Row>
+
+      <Row title="Bays" note="Racks with rails at the slot pitch. Strips fill whole slots; the count is right-aligned.">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Bay name="Plan" count={0} empty="Press Plan to see every write before anything changes." />
+          <Bay name="Cleared" count={2} empty="No writes yet.">
+            <Strip step={STEPS[0]} state={st("verified")} />
+            <Strip step={STEPS[2]} state={st("applied")} />
+          </Bay>
+        </div>
+      </Row>
+
+      <Row title="Actions" note="Signal marks the one next move. Everything else stays ink.">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="bb-btn bb-btn--primary">
+            <PikaIcon icon={FileIcon} size={15} strokeWidth={1.8} />
+            Plan
+          </button>
+          <button type="button" className="bb-btn">
+            <PikaIcon icon={PlayCircleIcon} size={15} strokeWidth={1.8} />
+            Apply
+          </button>
+          <button type="button" className="bb-btn" disabled>
+            <PikaIcon icon={ShieldCheckIcon} size={15} strokeWidth={1.8} />
+            Verify
+          </button>
+          <button type="button" className="bb-btn bb-btn--ghost">
+            Discard plan
+          </button>
+          <span className="inline-flex gap-2 rounded-[6px] bg-paper p-2">
+            <button type="button" className="bb-btn bb-btn--ink">
+              On paper
+            </button>
+            <button type="button" className="bb-btn bb-btn--paper">
+              Secondary
+            </button>
+          </span>
+        </div>
+      </Row>
+
+      <Row title="Sector" note="Values left, registrations right. The traced value lights as a busbar; the rest dims.">
+        <div className="max-w-[640px]">
+          <SectorMap board={initialBoard} onFocus={() => {}} />
+          <div className="mt-3">
+            <MarkLegend />
+          </div>
+        </div>
+      </Row>
+
+      <Row title="Fluted glass" note="The one material. Behind the sector only, still under reduced motion. Paper Shaders, Apache-2.0.">
+        <div className="relative h-56 overflow-hidden rounded-[7px] border border-rule">
+          <ShaderBackground />
+        </div>
+      </Row>
+    </main>
+  );
+}

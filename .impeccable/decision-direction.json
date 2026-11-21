@@ -1,0 +1,131 @@
+{
+  "title": "Choose busbar's visual world",
+  "question": "The roll assigned the Flight Strip Board. Keep it, take an alternate, or re-roll. This world carries the bb ui dashboard first, then the landing/docs site and the video's faux UI.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Flight Strip Board",
+      "kicker": "THE ROLL",
+      "lineage": "air-traffic-control flight progress strips and strip bays",
+      "thesis": "Every value is a strip in a rack; busbar works the board and hands you the one strip it can't clear.",
+      "palette": ["#262B2E", "#EFE4C4", "#3D6FA6", "#D9A23A", "#C2402F", "#2E7A4F"],
+      "materials": ["printed strip stock in coloured holders", "slotted rack rails", "grease-pencil and stamp marks"],
+      "viewport": "Left: a sector map, the source value (tunnel URL) at the fix with routes to Razorpay, Stripe, Meta and Google. Right: the strip bay in four bays: Plan, Active, Your turn, Cleared. The one strip cocked out of the rack is your Meta step, with its deep link.",
+      "risk": "ATC grammar is unfamiliar to most devs, so labels must stay literal; paper texture would turn it into costume.",
+      "raised": [
+        { "from": "challenger-streaming-wall", "raise": "Focus a value and every unrelated route and strip dims while the selected strip lifts." },
+        { "from": "challenger-crouwel", "raise": "The rack is a visible grid: strips occupy whole slots and the layout reflows by whole strips, never by squishing." },
+        { "from": "challenger-timetable", "raise": "Strip text sits at one size; rank comes from weight, case and reversal, never from a bigger font." },
+        { "from": "challenger-darkroom", "raise": "Every state carries a mark as well as a colour: stamp is verified, struck rule is drift, open box is unknown." },
+        { "from": "challenger-jcard", "raise": "Each bay carries a right-aligned running count, so the size of the plan is always legible." }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "Interlocking Panel",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "railway NX route-setting panels and signal-box mimic diagrams",
+      "thesis": "Set a route, the interlocking locks it, and the signal only clears when the track proves it.",
+      "palette": ["#56665A", "#F3F0E4", "#1B1D1C", "#D23B2C", "#3E9F4C"],
+      "materials": ["enamelled mimic panel", "lamp inserts along the line", "engraved label plates"],
+      "viewport": "A full-width mimic diagram: the source value enters at left, lines fan out to provider platforms, route lamps show the plan, and each destination has a signal that turns green only after verify.",
+      "risk": "My most familiar candidate: lamp-lit diagrams drift toward the dark node-graph dashboard every dev tool already ships."
+    },
+    {
+      "id": "challenger-jp-density",
+      "label": "High-Density Module Grid",
+      "verdict": "competitive",
+      "lineage": "Japanese contemporary high-density web",
+      "thesis": "Every provider is a ruled module with a red tab; your whole stack fits on one screen.",
+      "palette": ["#FFFFFF", "#111111", "#E60012", "#F2F2F2", "#D6D6D6"],
+      "materials": ["hairline-ruled modules", "small header tabs", "utility-red badges"],
+      "viewport": "A packed mosaic of provider modules, each listing its registered values, with drift badged in utility red.",
+      "case": "Fuses cleanly: providers become modules and values become rows; dense scanning suits the task, but devs don't recognise the world.",
+      "risk": "Cross-provider routes vanish into module borders, so busbar's one unique view is the hardest thing to see.",
+      "hero": "https://impeccable.style/worlds/cards/japanese-high-density-web-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/japanese-high-density-web.webp"
+    },
+    {
+      "id": "challenger-streaming-wall",
+      "label": "Streaming Title Wall",
+      "verdict": "declined",
+      "lineage": "streaming-service catalogue rows",
+      "thesis": "Providers as rows of tiles; the focused value grows and explains itself.",
+      "palette": ["#0E0F12", "#E8E8EA", "#E5B63B"],
+      "materials": ["poster tiles", "dimmed rows"],
+      "viewport": "Rows per provider, each value a tile, metadata only on focus.",
+      "case": "Fuses poorly: hiding metadata until focus defeats scanning for drift, and devs don't browse config like films.",
+      "risk": "Drift and verify state stay invisible until you hover.",
+      "kept": "Focus discipline: the selected thing lifts and everything unrelated dims.",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-streaming-title-card-wall-hero.webp"
+    },
+    {
+      "id": "challenger-crouwel",
+      "label": "Crouwel Grid Specimen",
+      "verdict": "declined",
+      "lineage": "Wim Crouwel gridded type specimens",
+      "thesis": "The layout grid is visible and everything snaps to its cells.",
+      "palette": ["#FFFFFF", "#9DB7D6", "#111111", "#E2462B"],
+      "materials": ["construction-grid hairlines", "cell-built letterforms"],
+      "viewport": "A visible cell grid with values snapped into cells.",
+      "case": "Fuses poorly: a designer's world, and monumental letterforms fight a dense operations task.",
+      "risk": "Becomes a poster about grids instead of a tool.",
+      "kept": "The grid as a visible, literal armature that layouts reflow by.",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp"
+    },
+    {
+      "id": "challenger-jcard",
+      "label": "Cassette J-Card",
+      "verdict": "declined",
+      "lineage": "hand-lettered mixtape inlays",
+      "thesis": "The plan as a tracklist timed to fit a side.",
+      "palette": ["#FBFAF4", "#2A4FA8", "#8C8C88", "#C8312A"],
+      "materials": ["ballpoint on ruled inlay", "folded card stock"],
+      "viewport": "Plan steps as side A, verify as side B.",
+      "case": "Fuses poorly: nostalgic and handwritten, the opposite of verified infra.",
+      "risk": "Reads as craft-project whimsy on production config.",
+      "kept": "Honest running totals, right-aligned tight against the margin.",
+      "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-cassette-j-card-hero.webp"
+    },
+    {
+      "id": "challenger-timetable",
+      "label": "Timetable Slide Rack",
+      "verdict": "declined",
+      "lineage": "1970s pocket airline timetables on a light table",
+      "thesis": "Every value in one type size, rank by weight and reversal alone.",
+      "palette": ["#E8B23A", "#2F3A40", "#F4EEDC", "#D2412B", "#2D6A4A"],
+      "materials": ["tinted glass slides", "lit goldenrod bed"],
+      "viewport": "A raked rack of slides, one per provider.",
+      "case": "Fuses poorly: the rake slows scanning and the world is unfamiliar to devs.",
+      "risk": "Angled containers cost legibility on a task screen.",
+      "kept": "One type size for data; rank carried by weight, case and reversal.",
+      "hero": "https://impeccable.style/worlds/cards/rw-timetable-slide-rack-hero.webp"
+    },
+    {
+      "id": "challenger-darkroom",
+      "label": "Darkroom Exposure Record",
+      "verdict": "declined",
+      "lineage": "printer's exposure cards and zone ramps",
+      "thesis": "Drift drawn as hatch density, conflict as cross-hatching.",
+      "palette": ["#1A1A1A", "#8A8A8A", "#EDEDED", "#D1338C"],
+      "materials": ["translucent overlay sheets", "hatch layers"],
+      "viewport": "Overlapping sheets per provider, conflicts cross-hatched.",
+      "case": "Fuses poorly: an obscure craft world, and hatching is slower to read than marks.",
+      "risk": "Beautiful but cryptic on a screen you open mid-build.",
+      "kept": "State that reads without colour: every status has its own mark.",
+      "hero": "https://impeccable.style/worlds/cards/operate-b-exposure-record-zone-sheets-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code", "toggle": false },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A Vercel/Linear-grade dev dashboard, executed impeccably.",
+    "palette": ["#0A0A0A", "#FAFAFA", "#3B82F6", "#22C55E", "#EF4444"],
+    "materials": ["neutral sidebar shell", "data tables", "node-graph canvas"],
+    "viewport": "Sidebar, project header, a node graph of providers, and a table of values with status dots.",
+    "risk": "Indistinguishable from every other dev tool by design."
+  },
+  "steer": true
+}
