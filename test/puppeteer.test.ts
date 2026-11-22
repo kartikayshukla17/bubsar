@@ -4,13 +4,12 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { detectBrowsers } from "../src/core/browser/browsers";
 import { PuppeteerDriver } from "../src/core/browser/puppeteer";
+import { testBrowser as browser } from "./helpers/browser";
 
-// A real installed Chromium (Brave first, else Dia), headless, on a throwaway profile, with
-// the mock keychain so macOS never asks for Keychain access, and loopback-only networking so
-// neither the test nor the browser's own background traffic leaves this machine.
-const browser = detectBrowsers(["/Applications"]).find((b) => b.id === "brave" || b.id === "dia");
+// Installed Brave (see helpers/browser.ts for why not Dia), headless, on a throwaway profile,
+// with the mock keychain so macOS never asks for Keychain access, and loopback-only
+// networking so neither the test nor the browser's own background traffic leaves this machine.
 
 const PAGE = `<!doctype html><title>stand-in</title>
 <ul id="list"><li><input name="uri" value="https://a.example/cb"></li><li><input name="uri" value="https://b.example/cb"></li></ul>
@@ -29,7 +28,7 @@ afterAll(() => {
   server.close();
 });
 
-describe.skipIf(!browser)(`PuppeteerDriver on ${browser?.name ?? "no installed Chromium"}`, () => {
+describe.skipIf(!browser)(`PuppeteerDriver on ${browser?.name ?? "no Brave installed"}`, () => {
   it("attaches headless to a temp profile and drives a local page", async () => {
     if (!browser) return;
     const profile = mkdtempSync(join(tmpdir(), "bb-profile-"));

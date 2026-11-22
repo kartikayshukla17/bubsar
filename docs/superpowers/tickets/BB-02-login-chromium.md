@@ -57,8 +57,11 @@ assumption in the MVP, so it goes first among the browser slices.
 - [ ] The profile's `Cookies` DB has `encrypted_value` rows prefixed `v10` and empty `value`
       columns. That proves real Keychain encryption; the test checks the prefix, not
       contents.
-- [x] DoD check 2 passes: busbar's own code never opens any cookie or password store. The
-      check above lives in a test helper excluded from `src/`.
+- [x] DoD check 2 passes: busbar's own code never opens any cookie or password store
+      (`scripts/guard.mjs` in `npm run lint`).
+- [ ] The check above lives in a test helper excluded from `src/`: written
+      (`test/helpers/keychain-check.ts`, run by `test/keychain.test.ts` when
+      `BB_REAL_PROFILE` is set); proving it on a real signed-in profile is pending (step 6).
 - [x] `bb logout google` removes the profile dir, and `bb status` shows "never logged in".
 
 ## Out of scope
@@ -77,7 +80,7 @@ Reading or writing anything in the console (BB-03+), Firefox (BB-08), re-auth ha
 Built on the fake world (`BB_FAKE`); nothing here has touched real Google. The boxes ticked
 above are the ones tests proved. The rest need Kartikay at a browser, listed at the end.
 
-**Tests (26 new, 57 total, vitest):**
+**Tests (31 new, 62 total, vitest; `test/keychain.test.ts` skipped unless `BB_REAL_PROFILE` is set):**
 - `src/core/browser/args.test.ts` (seam 4): the plain window carries no
   `--remote-debugging-*`, `--use-mock-keychain`, `--password-store`, `--enable-automation`
   or `--headless`; automation uses `pipe: true` and never a port; `keychain: "real"` drops the
@@ -92,8 +95,12 @@ above are the ones tests proved. The rest need Kartikay at a browser, listed at 
   opens no window ("already signed in", `openPlainCalls` stays 1); closing the window
   without signing in exits 1; an expired session reopens the window; a `project.name` that
   would escape `profiles/` is refused; status never-logged-in / signed in / signed out /
-  Chrome "untested on this machine" / uninstalled browser; logout removes the profile and
-  status returns to "never logged in". Profile dir is checked to be `0700`.
+  Chrome "untested on this machine" / uninstalled browser / a leftover profile from an earlier
+  browser / profiles with no local record (never "never logged in" while one exists);
+  logout removes every profile the project has, even after switching browsers, and status
+  returns to "never logged in"; a browser id in `local.json` that would climb out of
+  `profiles/` is refused with exit 1 and nothing deleted. Profile dir is checked to be
+  `0700`.
 - `test/daemon.test.ts` (seam 3): `GET /api/session`, and a `session` SSE event within 1s
   of a login in another terminal.
 - `test/puppeteer.test.ts` (seam 2): `PuppeteerDriver` attaches headless to a temp profile
@@ -115,13 +122,22 @@ above are the ones tests proved. The rest need Kartikay at a browser, listed at 
 - `bb status` runs a live check every time and rewrites `local.json`. Its profile line says
   what busbar does ("run with Brave's real Keychain encryption, not a mock"), not what the
   `v10` check below hasn't proven yet.
-- `bb logout google` deletes `profiles/<project>/<browser>` only. Project names are limited
-  to `[A-Za-z0-9][\w.-]*` because that folder is what logout deletes.
-- **Test browsers are loopback-only.** A probe found headless Brave, even with Puppeteer's
-  `--disable-background-networking`, opens its own connections: DNS-over-HTTPS to Google
-  Public DNS (`2001:4860:4860::8888`) plus Brave/AWS/Fastly hosts. One smoke-test run went
-  out that way before the fix. `loopbackOnly` (dead proxy + `--host-resolver-rules`) brought
-  it to 127.0.0.1 only, checked twice with `lsof`. BB-03+ recipe tests should construct
+- `bb logout google` deletes every `profiles/<project>/<known browser id>` that exists and
+  names each one. Profiles are per project + browser, so a later second provider would
+  share them; revisit logout's scope then. Project names are limited to
+  `[A-Za-z0-9][\w.-]*`, and `local.json`'s browser id must be one busbar knows, because
+  those become the folders logout deletes.
+- **Test browsers are loopback-only, and are Brave only.** A probe found headless Brave,
+  even with Puppeteer's `--disable-background-networking`, opens its own connections:
+  DNS-over-HTTPS to Google Public DNS (`2001:4860:4860::8888`) plus Brave/AWS/Fastly hosts.
+  One smoke-test run went out that way before the fix. `loopbackOnly` adds a dead proxy,
+  `--host-resolver-rules`, `--disable-features=DnsOverHttps` (DoH can target an IP
+  literal), `--disable-component-update`, `--disable-domain-reliability` and `--no-pings`.
+  With it, an lsof probe of Brave's process tree saw loopback only (12s probe, and 13
+  samples during the real smoke test). **Dia under the same flags kept six connections open
+  to Google Cloud and AWS hosts**: its own app networking ignores Chromium's flags. So tests
+  never launch Dia: `test/helpers/browser.ts` exports `testBrowser` (Brave or undefined).
+  BB-03+ recipe tests use it with
   `new PuppeteerDriver({ keychain: "mock", loopbackOnly: true })`.
 - `/api/session` serves `local.json` plus `browserName`, so the SPA doesn't import
   `browsers.ts` (which uses `node:fs`). The board shows `Google · Brave · signed in`,
@@ -172,18 +188,20 @@ Run these in a scratch project, never in a real one:
 5. **Spike step 4 + "Works the same on Dia".** Repeat 1–4 with `--browser dia` and
    `Dia.app/Contents/MacOS/Dia`. Then `bb login google` again: expect "already signed in"
    with no window (the second-login acceptance item, for real).
-6. **Keychain encryption (`v10`).** With busbar's Brave closed, from a test-side shell
-   (never from `src/`):
+6. **Keychain encryption (`v10`).** With busbar's Brave closed, from the repo root:
    ```sh
-   sqlite3 "$P/brave/Default/Network/Cookies" \
-     "select count(*), sum(substr(encrypted_value,1,3)='v10'), sum(length(value)>0) from cookies;"
+   BB_REAL_PROFILE="$P/brave" npx vitest run test/keychain.test.ts
    ```
-   Expect `N|N|0`: every row `v10`-prefixed, no plaintext `value`. (Older layouts keep the
-   file at `Default/Cookies`.) The first `bb status` after a fresh login may raise one
-   macOS Keychain prompt for "Brave Safe Storage"; record whether it does.
+   It passes when every row's `encrypted_value` starts with `v10` and no `value` is
+   plaintext. It reads counts only, never cookie contents. Then tick both Keychain boxes.
+   Note: a profile run with Puppeteer's *mock* keychain writes `v11`, and the test fails on
+   it (checked here on a throwaway profile). If the real profile also shows something other
+   than `v10`, record the prefix: the acceptance wording needs revisiting, not the helper.
+   Repeat with `$P/dia`. The first `bb status` after a fresh login may raise one macOS
+   Keychain prompt for "Brave Safe Storage"; record whether it does.
 7. **Board chip.** `bb ui` in the spike project, then `bb login google` / `bb logout google`
    in another terminal: the header chip should change within a second without a reload.
    (Checked headless against the fake world here; screenshots not committed.)
-8. **Clean up:** `bb logout google` removes only the browser last used (Dia after step 5),
-   so finish with `rm -rf "$P" ~/bb-spike`.
+8. **Clean up:** `bb logout google` (removes and names both profiles), then
+   `rm -rf ~/bb-spike`.
 

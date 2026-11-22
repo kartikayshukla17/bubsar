@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { BrowserId, InstalledBrowser } from "./browser/browsers";
+import { type BrowserId, type InstalledBrowser, KNOWN } from "./browser/browsers";
 import type { BrowserDriver } from "./browser/driver";
 import { ensureRunDir, RUN_DIR, writeAtomic } from "./run";
 
@@ -25,7 +25,15 @@ export function profileDir(project: string, browser: BrowserId, env = process.en
     throw new Error(
       `project.name "${project}" can't name a profile folder. Use letters, digits, ".", "-" or "_".`,
     );
+  if (!isBrowserId(browser)) throw new Error(`"${browser}" isn't a browser busbar knows.`);
   return join(busbarHome(env), "profiles", project, browser);
+}
+
+/** Every busbar profile this project has on disk, one per browser it was logged in with. */
+export function existingProfiles(project: string, env = process.env) {
+  return KNOWN.map((k) => ({ id: k.id, name: k.name, dir: profileDir(project, k.id, env) })).filter(
+    (p) => existsSync(p.dir),
+  );
 }
 
 export function consoleOrigin(env = process.env) {
@@ -60,9 +68,20 @@ export async function checkSession(
 /** `.busbar/local.json`: this machine's choices for the project. Public, no secrets. */
 export type Local = { google?: { browser: BrowserId; session: Session; checkedAt: string } };
 
+const isBrowserId = (id: unknown): id is BrowserId => KNOWN.some((k) => k.id === id);
+
+/**
+ * Read `local.json`. It's a plain file anyone can edit, and its browser id becomes a folder
+ * that `bb logout` deletes, so an id busbar doesn't know is refused, never used.
+ */
 export function readLocal(projectDir: string): Local {
   const file = join(projectDir, RUN_DIR, "local.json");
-  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  const local: Local = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  if (local.google && !isBrowserId(local.google.browser))
+    throw new Error(
+      `${RUN_DIR}/local.json: google.browser "${local.google.browser}" isn't a browser busbar knows (${KNOWN.map((k) => k.id).join(", ")}). Delete ${RUN_DIR}/local.json and run bb login google.`,
+    );
+  return local;
 }
 
 export function writeLocal(projectDir: string, local: Local) {

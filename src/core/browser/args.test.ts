@@ -58,8 +58,15 @@ describe("automationLaunchOptions", () => {
       loopbackOnly: true,
     });
     expect(o.args).toEqual([
+      // everything but loopback goes to a dead proxy, and no host name resolves
       "--proxy-server=http://127.0.0.1:9",
       "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+      // DNS-over-HTTPS can target an IP literal (8.8.8.8), which resolver rules don't cover
+      "--disable-features=DnsOverHttps",
+      // the browser's own background traffic
+      "--disable-component-update",
+      "--disable-domain-reliability",
+      "--no-pings",
     ]);
     const real = automationLaunchOptions(brave, PROFILE, { headless: true, keychain: "real" });
     expect(real.args ?? []).toEqual([]);

@@ -5,6 +5,7 @@ import { type BrowserDriver, driverFromEnv } from "../core/browser/driver";
 import { loadConfig } from "../core/config";
 import {
   checkSession,
+  existingProfiles,
   profileDir,
   readLocal,
   type Session,
@@ -135,12 +136,22 @@ export async function cmdStatus(driver: BrowserDriver = driverFromEnv()) {
   out(`busbar status · ${config.project.name}`);
   out();
 
+  const project = config.project.name;
+  const profiles = existingProfiles(project);
   const google = local.google;
-  const dir = google ? profileDir(config.project.name, google.browser) : "";
-  if (!google || !existsSync(dir)) {
-    out("google: never logged in. Run bb login google.");
+  const current = google && profiles.find((p) => p.id === google.browser);
+  if (!google || !current) {
+    if (profiles.length === 0) {
+      out("google: never logged in. Run bb login google.");
+      return;
+    }
+    const width = Math.max(...profiles.map((p) => p.name.length));
+    out("google: not checked · no browser chosen, but busbar has profiles here:");
+    for (const p of profiles) out(`  ${p.name.padEnd(width)}  ${p.dir}`);
+    out("Run bb login google to use one, or bb logout google to remove them.");
     return;
   }
+  const dir = current.dir;
   const browser = driver.detect().find((b) => b.id === google.browser);
   if (!browser) {
     out(
@@ -161,20 +172,32 @@ export async function cmdStatus(driver: BrowserDriver = driverFromEnv()) {
       ? "  Checked  just now: the Cloud console loaded without a redirect to Google sign-in."
       : "  Checked  just now: the Cloud console redirected to Google sign-in. Run bb login google.",
   );
+  for (const p of profiles)
+    if (p.id !== browser.id) out(`  Also     ${p.name} profile, not in use: ${p.dir}`);
 }
 
-/** `bb logout google`: delete busbar's profile for this project. Google's side is untouched. */
+/**
+ * `bb logout google`: delete every busbar profile this project has (one per browser it was
+ * logged in with), and forget the choice. Google's side is untouched.
+ */
 export function cmdLogout(argv: string[]) {
   provider(argv, "logout");
   const cwd = process.cwd();
-  const config = loadConfig(cwd);
+  const project = loadConfig(cwd).project.name;
   const { google, ...rest } = readLocal(cwd);
-  if (!google) {
+  const profiles = existingProfiles(project);
+  for (const p of profiles) rmSync(p.dir, { recursive: true, force: true });
+  if (google) writeLocal(cwd, rest);
+  if (profiles.length === 0) {
     process.stdout.write("google: not logged in. Nothing to remove.\n");
     return;
   }
-  const dir = profileDir(config.project.name, google.browser);
-  rmSync(dir, { recursive: true, force: true });
-  writeLocal(cwd, rest);
-  process.stdout.write(`google: logged out · ${nameOf(google.browser)}. Removed ${dir}\n`);
+  const width = Math.max(...profiles.map((p) => p.name.length));
+  process.stdout.write(
+    [
+      `google: logged out. Removed busbar's profiles for ${project}:`,
+      ...profiles.map((p) => `  ${p.name.padEnd(width)}  ${p.dir}`),
+      "",
+    ].join("\n"),
+  );
 }

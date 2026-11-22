@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { project, SAMPLE_TOML } from "./helpers/project";
@@ -68,5 +68,37 @@ describe("bb status", () => {
     );
     expect(p.world().attachCalls).toHaveLength(1);
     expect(existsSync(join(p.home, "profiles", "enquiry-to-paid", "brave"))).toBe(true);
+  });
+
+  it("lists a profile left from an earlier browser alongside the one in use", () => {
+    const p = project(SAMPLE_TOML, {
+      browsers: ["brave", "dia"],
+      google: { session: "signed-out" },
+    });
+    p.bb("login", "google", "--browser", "brave");
+    p.bb("login", "google", "--browser", "dia");
+    const r = p.bb("status");
+    expect(r.stdout).toContain("google: signed in · Dia\n");
+    expect(r.stdout).toContain(
+      `  Also     Brave profile, not in use: ${join(p.home, "profiles", "enquiry-to-paid", "brave")}\n`,
+    );
+  });
+
+  it("never says never logged in while a profile exists, even without a local record", () => {
+    const p = project(SAMPLE_TOML, BRAVE_ONLY);
+    p.bb("login", "google");
+    rmSync(join(p.dir, ".busbar", "local.json"));
+    const r = p.bb("status");
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe(
+      [
+        "busbar status · enquiry-to-paid",
+        "",
+        "google: not checked · no browser chosen, but busbar has profiles here:",
+        `  Brave  ${join(p.home, "profiles", "enquiry-to-paid", "brave")}`,
+        "Run bb login google to use one, or bb logout google to remove them.",
+        "",
+      ].join("\n"),
+    );
   });
 });
