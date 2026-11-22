@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import type { Browser, ElementHandle, Page as PuppeteerTab } from "puppeteer-core";
 import { automationLaunchOptions, plainLaunchArgs } from "./args";
 import { applicationRoots, detectBrowsers, type InstalledBrowser } from "./browsers";
-import type { BrowserDriver, Page } from "./driver";
+import type { BrowserDriver, Page, PlainEnd } from "./driver";
+import { untilEnter } from "./enter";
 
 /** How long a plain window gets to shut down cleanly before it's killed. */
 const QUIT_GRACE_MS = 10_000;
@@ -18,40 +19,36 @@ export class PuppeteerDriver implements BrowserDriver {
     return detectBrowsers(applicationRoots());
   }
 
-  openPlain(browser: InstalledBrowser, profileDir: string, url: string): Promise<void> {
+  async openPlain(
+    browser: InstalledBrowser,
+    profileDir: string,
+    url: string,
+    o: { signal?: AbortSignal } = {},
+  ): Promise<PlainEnd> {
     const child = spawn(browser.executable, plainLaunchArgs(browser, profileDir, url), {
       stdio: "ignore",
     });
-    const exited = new Promise<void>((done) => child.once("exit", () => done()));
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const onLine = (chunk: Buffer) => {
-        if (chunk.includes(0x0a)) finish();
-      };
+    const exited = new Promise<"closed">((done) => child.once("exit", () => done("closed")));
+    const failed = new Promise<never>((_, reject) =>
+      child.once("error", (e) => reject(new Error(`couldn't start ${browser.name}: ${e.message}`))),
+    );
+    const stop = new AbortController();
+    const signal = o.signal ? AbortSignal.any([o.signal, stop.signal]) : stop.signal;
+    try {
       // macOS keeps an app running after its last window closes, so Enter is the usual way
       // out. Quitting the browser (Cmd-Q) ends the wait too.
-      const finish = async () => {
-        if (settled) return;
-        settled = true;
-        process.stdin.off("data", onLine);
-        process.stdin.pause();
-        if (child.exitCode === null && child.signalCode === null) {
-          child.kill("SIGTERM"); // Chromium shuts down cleanly on SIGTERM and frees the profile.
-          const force = setTimeout(() => child.kill("SIGKILL"), QUIT_GRACE_MS);
-          await exited;
-          clearTimeout(force);
-        }
-        resolve();
-      };
-      child.once("error", (e) => {
-        settled = true;
-        process.stdin.off("data", onLine);
-        process.stdin.pause();
-        reject(new Error(`couldn't start ${browser.name}: ${e.message}`));
-      });
-      child.once("exit", finish);
-      process.stdin.on("data", onLine);
-    });
+      const end = await Promise.race([untilEnter(signal), exited, failed]);
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGTERM"); // Chromium shuts down cleanly on SIGTERM and frees the profile.
+        const force = setTimeout(() => child.kill("SIGKILL"), QUIT_GRACE_MS);
+        await exited;
+        clearTimeout(force);
+      }
+      // Ctrl-C in the terminal reaches the browser too, and its exit mustn't read as Cmd-Q.
+      return o.signal?.aborted ? "stopped" : end;
+    } finally {
+      stop.abort();
+    }
   }
 
   async attach(browser: InstalledBrowser, profileDir: string, o: { headless: boolean }) {

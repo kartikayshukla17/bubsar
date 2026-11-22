@@ -40,10 +40,10 @@ try {
       process.stdout.write(`busbar ${__BB_VERSION__}\n`);
       break;
     case "plan":
-      await cmdPlan(rest);
+      process.exitCode = await cmdPlan(rest);
       break;
     case "apply":
-      await cmdApply(rest);
+      process.exitCode = await cmdApply(rest);
       break;
     case "verify":
       process.exitCode = await cmdVerify(rest);

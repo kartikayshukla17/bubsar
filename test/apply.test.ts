@@ -264,15 +264,28 @@ describe("bb apply when the write fails", () => {
       });
   });
 
-  it("a bounce to sign-in at the re-read fails the strips, records signed out, saves nothing", () => {
+  it("an expired session at the re-read hands over instead of failing; Enter carries on to applied", () => {
     const p = planned();
     p.setWorld({ ...p.world(), google: { ...p.world().google, session: "signed-out" } });
-    const r = p.bb("apply", "--yes");
-    expect(r.stderr).toBe("bb: session expired; run `bb login google`\n");
-    expect(r.code).toBe(1);
-    expect(calls(p.world(), "save")).toEqual([]);
-    expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
-    expect(eventsAfterPlan(p.read)).toEqual(["fail google-redirect-1", "fail google-origin-1"]);
+    const r = p.bbInput("\n", "apply", "--yes");
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(
+      "Google wants you to sign in again. busbar opened Brave on its profile at accounts.google.com/v3/signin/identifier.",
+    );
+    expect(calls(p.world(), "save")).toHaveLength(1);
+    expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-in");
+    expect(eventsAfterPlan(p.read)).toEqual([
+      "handoff google-redirect-1",
+      "handoff google-origin-1",
+      "plan",
+      "start",
+      "activate google-redirect-1",
+      "activate google-origin-1",
+      "settle google-redirect-1",
+      "settle google-origin-1",
+      "apply-done",
+    ]);
   });
 
   it("a read-back that differs from the plan ends failed, and ownership follows what Google holds", () => {

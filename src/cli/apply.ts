@@ -4,12 +4,12 @@ import { type ApplyIO, applyPlan, ownedAfter, plannedSteps } from "../core/apply
 import { driverFromEnv } from "../core/browser/driver";
 import { type Config, loadConfig } from "../core/config";
 import { desiredLists } from "../core/plan";
-import { clientUrl, ReauthRequired, sameLists } from "../core/recipes/google/console";
+import { clientUrl, sameLists } from "../core/recipes/google/console";
 import { appendEvent, describe, readRun, startRun } from "../core/run";
 import { consoleOrigin } from "../core/session";
 import { googleState, type Planned, readState, writeState } from "../core/state";
-import { googleProfile, openGoogleConsole, recordSession, withConsole } from "./google";
-import { printApplied, printApply } from "./print";
+import { DriverConsoles, googleProfile, recordSession, withConsoles } from "./google";
+import { printApplied, printApply, printLanded } from "./print";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
@@ -50,7 +50,8 @@ async function confirm(changes: number, yes: boolean) {
   return /^y(es)?$/i.test((await readLine()).trim());
 }
 
-export async function cmdApply(argv: string[], driver = driverFromEnv()) {
+/** `bb apply [--yes]`. Exit code: 0, or 2 when you stopped at a handoff. */
+export async function cmdApply(argv: string[], driver = driverFromEnv()): Promise<number> {
   const { values: flags } = parseArgs({ args: argv, options: { yes: { type: "boolean" } } });
   const cwd = process.cwd();
   const config = loadConfig(cwd);
@@ -67,7 +68,7 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()) {
     process.stdout.write(
       "Nothing to apply: the last plan has no changes left. Run `bb plan` to read Google again.\n",
     );
-    return;
+    return 0;
   }
 
   const profile = googleProfile(cwd, config.project.name, driver);
@@ -82,7 +83,8 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()) {
       { project: config.project.name, ...describe(config, planned.values) },
       { type: "plan", steps: plannedSteps(config, planned) },
     ).board.steps;
-  const gc = await openGoogleConsole(
+  const consoles = new DriverConsoles(
+    cwd,
     driver,
     profile,
     clientUrl(consoleOrigin(), google.project_id, google.client_id),
@@ -102,18 +104,30 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()) {
       }),
     emit: (a) => appendEvent(cwd, a),
   };
-  const out = await withConsole(gc, () => applyPlan(gc, planned, steps, io));
+  const out = await withConsoles(consoles, () => applyPlan(consoles, planned, steps, io));
+  if (consoles.handoffs > 0 && out.result !== "stopped" && out.result !== "failed")
+    recordSession(cwd, "signed-in");
 
   switch (out.result) {
     case "changed":
       throw new Error("Google changed since you planned. Run `bb plan` again.");
     case "declined":
       throw new Error("Not applied: you answered no. Nothing changed in Google.");
+    case "refused":
+    case "failed":
+      throw out.error;
     case "applied":
       process.stdout.write(printApplied(planned.read, planned.next));
-      return;
-    case "failed":
-      if (out.error instanceof ReauthRequired) recordSession(cwd, "signed-out");
-      throw out.error;
+      return 0;
+    case "landed":
+      process.stdout.write(printLanded(planned.read, planned.next));
+      return 0;
+    case "stopped":
+      process.stderr.write(
+        out.reauth.afterSave
+          ? "bb: Stopped at your turn. Google confirmed the Save, but busbar hasn't read the client back. Run `bb apply` again to read it and record what landed.\n"
+          : "bb: Stopped at your turn. Nothing was changed in Google. Run `bb apply` again to carry on.\n",
+      );
+      return 2;
   }
 }

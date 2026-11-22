@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Bay } from "~/components/bay";
 import { FlightBar, type SessionChip } from "~/components/flight-bar";
-import { Handoff } from "~/components/handoff";
+import { Handoff, LiveHandoff } from "~/components/handoff";
 import { Ledger } from "~/components/ledger";
 import { MarkLegend, SectorMap } from "~/components/sector-map";
 import { Strip } from "~/components/strip";
@@ -106,7 +106,7 @@ function liveStatus(s: BoardState): Status {
       return { text: busy ? `${busy.provider}: ${note ?? "checking"}` : "Verifying", live: true };
     }
     case "handoff":
-      return { text: "Paused. One strip needs you.", live: false };
+      return { text: "Paused for you. Press Enter in your terminal when done.", live: false };
     case "applied":
       return {
         text: `${plural(n, "write")} made. Nothing turns green until bb verify proves it.`,
@@ -141,10 +141,12 @@ function BoardView({
   emptyPlan,
   footer,
   session,
+  browser,
 }: {
   scene: Scene;
   board: BoardState;
   session?: SessionChip | null;
+  browser?: string;
   status: Status;
   send: (a: Action) => void;
   controls: {
@@ -223,7 +225,7 @@ function BoardView({
             count={inBay("turn").length}
             empty="Nothing needs you."
           >
-            {inBay("turn").map((st) => (
+            {inBay("turn").map((st, i) => (
               <div key={st.id}>
                 <Strip
                   step={st}
@@ -233,7 +235,11 @@ function BoardView({
                   cocked
                   dimmed={!stepTouches(st, board.focus)}
                 />
-                {scene.live ? null : (
+                {scene.live ? (
+                  i === inBay("turn").length - 1 && board.strips[st.id].mark === "handoff" ? (
+                    <LiveHandoff note={board.strips[st.id].note} browser={browser} />
+                  ) : null
+                ) : (
                   <Handoff
                     onDone={() => send({ type: "handoff-done", id: st.id })}
                     onSkip={() => send({ type: "handoff-done", id: st.id })}
@@ -460,6 +466,7 @@ function LiveBoard() {
       emptyPlan={`Run ${PLAN_COMMAND} to see every write before anything changes.`}
       controls={NO_CONTROLS}
       session={sessionChip(sessions, run?.destinations.some((d) => d.id === "google") ?? false)}
+      browser={sessions.google?.browserName}
     />
   );
 }

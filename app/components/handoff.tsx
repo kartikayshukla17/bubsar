@@ -136,3 +136,25 @@ export function Handoff({ onDone, onSkip }: { onDone: () => void; onSkip: () => 
     </div>
   );
 }
+
+/** Read-only in v1: the Enter key in the terminal is what carries the run on. */
+export function LiveHandoff({ note, browser }: { note?: string; browser?: string }) {
+  return (
+    <div className="ml-[14px] mt-3 rounded-[6px] border border-rule bg-ink-3 p-5 sm:p-6">
+      <div className="t-reveal max-w-[68ch]">
+        <h4 className="font-display text-[19px] font-semibold leading-tight tracking-[-0.015em] text-balance">
+          Your turn.
+        </h4>
+        <p className="mt-2 text-mute">{note ?? "busbar stopped and handed this step to you."}</p>
+        {browser ? (
+          <p className="mt-4 text-[13px]">
+            <span className="text-mute">Browser </span>
+            <strong className="font-semibold">{browser}</strong>
+            <span className="text-mute">, busbar's own profile, not your everyday one</span>
+          </p>
+        ) : null}
+        <p className="mt-5 font-semibold">Press Enter in your terminal when done.</p>
+      </div>
+    </div>
+  );
+}

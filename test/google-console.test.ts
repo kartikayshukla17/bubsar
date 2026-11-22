@@ -138,7 +138,7 @@ describe.skipIf(!browser)(
         expect((err as ReauthRequired).url).toMatch(
           new RegExp(`^${standIn.accountsOrigin}/v3/signin/identifier\\?continue=`),
         );
-        expect((err as Error).message).toBe("session expired; run `bb login google`");
+        expect((err as ReauthRequired).afterSave).toBe(false);
       },
     );
 
@@ -209,6 +209,23 @@ describe.skipIf(!browser)(
         standIn.set.rewrite = [['list("Authorized redirect URIs"', 'list("Redirect URIs"']];
         await expect(r.write(next)).rejects.toThrow(
           "Google confirmed the Save, but busbar couldn't read the client back (Google console layout changed: `redirectUris` not found). Run `bb plan` to see what it holds.",
+        );
+        expect(standIn.saves).toEqual([next]);
+      });
+
+      it("a sign-in bounce at the read-back after a confirmed Save says the Save went through", async () => {
+        standIn.lists = structuredClone(before);
+        const r = recipe();
+        await r.read();
+        standIn.set.reauth = "redirect";
+        const err = await r.write(next).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ReauthRequired);
+        expect((err as ReauthRequired).afterSave).toBe(true);
+        expect((err as ReauthRequired).url).toMatch(
+          new RegExp(`^${standIn.accountsOrigin}/v3/signin/identifier\\?continue=`),
+        );
+        expect((err as Error).message).toBe(
+          "Google confirmed the Save, then sent busbar's profile to sign-in before busbar could read the client back.",
         );
         expect(standIn.saves).toEqual([next]);
       });

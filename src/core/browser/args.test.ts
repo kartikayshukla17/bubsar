@@ -25,6 +25,21 @@ describe("plainLaunchArgs: the window you sign into carries no automation", () =
   });
 });
 
+describe("the handoff window (BB-06) is the same plain process, at Google's own page", () => {
+  it("carries no debugging pipe or port and no automation flag, only the profile and the page", () => {
+    const challenge =
+      "https://accounts.google.com/v3/signin/challenge/pwd?continue=https%3A%2F%2Fconsole.cloud.google.com%2Fauth%2Fclients%2F1234-abc.apps.googleusercontent.com%3Fproject%3Dmy-sandbox-123";
+    const args = plainLaunchArgs(brave, PROFILE, challenge);
+    expect(args).toEqual([
+      `--user-data-dir=${PROFILE}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      challenge,
+    ]);
+    expect(args.join(" ")).not.toMatch(/remote-debugging|automation|headless|mock-keychain/);
+  });
+});
+
 describe("automationLaunchOptions", () => {
   it("talks over a pipe, never a port, on busbar's profile", () => {
     const o = automationLaunchOptions(brave, PROFILE, { headless: true, keychain: "real" });

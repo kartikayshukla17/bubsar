@@ -101,3 +101,24 @@ describe("checked carries the recorded result (BB-05)", () => {
     });
   });
 });
+
+describe("handoff (BB-06)", () => {
+  it("moves the strip to Your turn with the instruction, and pauses the run", () => {
+    let s = reduce(initialBoard(), {
+      type: "plan",
+      steps: [step("google-redirect-1"), step("google-origin-1")],
+    });
+    s = reduce(s, { type: "start" });
+    s = reduce(s, { type: "activate", id: "google-redirect-1" });
+    const note = "Google wants you to sign in again. busbar opened Brave on its profile.";
+    s = reduce(s, { type: "handoff", id: "google-redirect-1", note });
+    expect(s.phase).toBe("handoff");
+    expect(s.strips["google-redirect-1"]).toEqual({
+      bay: "turn",
+      mark: "handoff",
+      fresh: true,
+      note,
+    });
+    expect(s.strips["google-origin-1"]).toEqual({ bay: "plan", mark: "planned", fresh: false });
+  });
+});

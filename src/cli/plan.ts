@@ -1,10 +1,11 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import type { Step } from "../core/board";
+import type { Action, Step } from "../core/board";
 import { driverFromEnv } from "../core/browser/driver";
 import { loadConfig } from "../core/config";
 import { diff, nextLists } from "../core/diff";
+import { withHandoff } from "../core/handoff";
 import { desiredLists, plan, resolveValues } from "../core/plan";
 import {
   clientUrl,
@@ -15,7 +16,7 @@ import {
 import { appendEvent, describe, ensureRunDir, RUN_DIR, type Run, startRun } from "../core/run";
 import { consoleOrigin } from "../core/session";
 import { googleState, readState, writeState } from "../core/state";
-import { googleProfile, openGoogleConsole, recordSession, withConsole } from "./google";
+import { DriverConsoles, googleProfile, recordSession, withConsoles } from "./google";
 import { printDiff, printPlan } from "./print";
 
 /**
@@ -59,8 +60,8 @@ function failRun(
   for (const s of steps) appendEvent(projectDir, { type: "fail", id: s.id, note: reason });
 }
 
-/** `bb plan --tunnel <url> [--adopt] [--debug]` */
-export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
+/** `bb plan --tunnel <url> [--adopt] [--debug]`. Exit code: 0, or 2 when you stopped at a handoff. */
+export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise<number> {
   const { values: flags } = parseArgs({
     args: argv,
     options: { tunnel: { type: "string" }, adopt: { type: "boolean" }, debug: { type: "boolean" } },
@@ -78,30 +79,47 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
     const steps = plan(config, values);
     startRun(cwd, base, { type: "plan", steps });
     process.stdout.write(printPlan(config, steps));
-    return;
+    return 0;
   }
 
   const state = readState(cwd);
   const gstate = googleState(state);
-  const gc = await openGoogleConsole(
+  const consoles = new DriverConsoles(
+    cwd,
     driver,
     profile,
     clientUrl(consoleOrigin(), google.project_id, google.client_id),
   );
-  const read = await withConsole(gc, async () => {
-    try {
-      return await gc.read();
-    } catch (e) {
-      // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
-      if (e instanceof SelectorMissing || e instanceof ReauthRequired) {
-        dropPlan(cwd);
-        failRun(cwd, base, plan(config, values), (e as Error).message);
+  const unread = plan(config, values);
+  let handedOff = false;
+  const emit = (a: Action) => {
+    if (!handedOff) startRun(cwd, base, { type: "plan", steps: unread });
+    handedOff = true;
+    appendEvent(cwd, a);
+  };
+  const out = await withConsoles(consoles, () =>
+    withHandoff(consoles, unread, emit, async (gc) => {
+      try {
+        return await gc.read();
+      } catch (e) {
+        // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
+        if (e instanceof SelectorMissing) {
+          dropPlan(cwd);
+          failRun(cwd, base, unread, e.message);
+        }
+        if (flags.debug && !(e instanceof ReauthRequired)) await saveScreenshot(cwd, gc);
+        throw e;
       }
-      if (e instanceof ReauthRequired) recordSession(cwd, "signed-out");
-      if (flags.debug) await saveScreenshot(cwd, gc);
-      throw e;
-    }
-  });
+    }),
+  );
+  if ("result" in out) {
+    dropPlan(cwd);
+    process.stderr.write(
+      `bb: Stopped at your turn, before busbar could read the client. Nothing was changed in Google. Run \`bb plan --tunnel ${values["tunnel.url"] ?? "<url>"}\` again to carry on.\n`,
+    );
+    return 2;
+  }
+  const read = out;
 
   const desired = desiredLists(config, values);
   const d = diff(read, desired, gstate.owned, { adopt: flags.adopt ?? false });
@@ -110,4 +128,5 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
   recordSession(cwd, "signed-in");
   startRun(cwd, base, { type: "plan", steps: plan(config, values, d) });
   process.stdout.write(printDiff(config, d, profile.browser.name));
+  return 0;
 }

@@ -1,5 +1,5 @@
 import type { Page } from "../../browser/driver";
-import { readWorld, updateWorld } from "../../browser/fake";
+import { readWorld, scriptedReauth, updateWorld } from "../../browser/fake";
 import {
   type GoogleConsole,
   isReauth,
@@ -30,10 +30,10 @@ export class FakeGoogleConsole implements GoogleConsole {
     });
     await this.page.goto(this.url);
     const now = await this.page.url();
-    const { google } = readWorld(this.file);
+    const world = readWorld(this.file);
+    const { google } = world;
     if (isReauth(now)) throw new ReauthRequired(now);
-    if (google.fail?.reauth === "read")
-      throw new ReauthRequired("https://accounts.google.com/v3/signin/challenge/pwd");
+    if (scriptedReauth(world) === "read") throw new ReauthRequired(CHALLENGE);
     const missing = google.fail?.missingSelector;
     if (missing !== undefined) {
       if (!(missing in SELECTORS))
@@ -48,7 +48,10 @@ export class FakeGoogleConsole implements GoogleConsole {
 
   async write(next: Lists): Promise<{ saved: Lists }> {
     if (!this.#read) throw new Error("write() needs read() first, in the same page load");
-    const fail = readWorld(this.file).google.fail;
+    const world = readWorld(this.file);
+    const fail = world.google.fail;
+    const reauth = scriptedReauth(world);
+    if (reauth === "save") throw new ReauthRequired(CHALLENGE);
     updateWorld(this.file, (w) => {
       w.consoleCalls = [
         ...(w.consoleCalls ?? []),
@@ -57,6 +60,7 @@ export class FakeGoogleConsole implements GoogleConsole {
       if (!fail?.saveError) w.google.client = copy(fail?.savedAs ?? next);
     });
     if (fail?.saveError) throw new SaveRejected(fail.saveError);
+    if (reauth === "readback") throw new ReauthRequired(CHALLENGE, true);
     return { saved: await this.read() };
   }
 
@@ -68,6 +72,9 @@ export class FakeGoogleConsole implements GoogleConsole {
     return this.page.close();
   }
 }
+
+/** Where a scripted bounce lands. Never fetched: it's only a URL string. */
+const CHALLENGE = "https://accounts.google.com/v3/signin/challenge/pwd";
 
 const copy = (l: Lists): Lists => ({
   redirectUris: [...l.redirectUris],

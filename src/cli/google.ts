@@ -1,5 +1,6 @@
 import type { InstalledBrowser } from "../core/browser/browsers";
 import type { BrowserDriver } from "../core/browser/driver";
+import type { Consoles } from "../core/handoff";
 import { type GoogleConsole, PageGoogleConsole } from "../core/recipes/google/console";
 import { FakeGoogleConsole } from "../core/recipes/google/fake";
 import {
@@ -54,16 +55,72 @@ export function recordSession(projectDir: string, session: Session) {
     });
 }
 
-export async function withConsole<T>(gc: GoogleConsole, fn: () => Promise<T>): Promise<T> {
-  const close = () =>
-    gc.close().catch((e: unknown) => {
-      process.stderr.write(
-        `bb: also couldn't close busbar's automated browser: ${(e as Error).message}. Quit it before the next bb command.\n`,
+const closeFailed = (e: unknown) =>
+  `couldn't close busbar's automated browser: ${(e as Error).message}`;
+
+/**
+ * The CLI's side of a handoff: the automated browser on busbar's Google profile, attached
+ * on demand, and the plain window that hands it to you. Ctrl-C during the wait stops.
+ */
+export class DriverConsoles implements Consoles {
+  #gc: GoogleConsole | null = null;
+  handoffs = 0;
+
+  constructor(
+    private readonly projectDir: string,
+    private readonly driver: BrowserDriver,
+    private readonly profile: GoogleProfile,
+    private readonly url: string,
+  ) {}
+
+  get browser() {
+    return this.profile.browser.name;
+  }
+
+  async open() {
+    this.#gc ??= await openGoogleConsole(this.driver, this.profile, this.url);
+    return this.#gc;
+  }
+
+  async handOver(url: string, instruction: string) {
+    this.handoffs++;
+    recordSession(this.projectDir, "signed-out");
+    const gc = this.#gc;
+    this.#gc = null;
+    // A second launch on a profile that's still open would land in the automated browser.
+    await gc?.close().catch((e: unknown) => {
+      throw new Error(
+        `${closeFailed(e)}, so busbar didn't open the sign-in window: the profile is still in use. Quit it, then run the command again.`,
       );
     });
+    const stop = new AbortController();
+    const onInterrupt = () => stop.abort();
+    process.once("SIGINT", onInterrupt);
+    try {
+      const ended = this.driver.openPlain(this.profile.browser, this.profile.dir, url, {
+        signal: stop.signal,
+      });
+      process.stdout.write(`\n${instruction}\n`);
+      const end = await ended;
+      return end === "enter" || end === "closed";
+    } finally {
+      process.off("SIGINT", onInterrupt);
+    }
+  }
+
+  async close() {
+    const gc = this.#gc;
+    this.#gc = null;
+    await gc?.close().catch((e: unknown) => {
+      process.stderr.write(`bb: also ${closeFailed(e)}. Quit it before the next bb command.\n`);
+    });
+  }
+}
+
+export async function withConsoles<T>(c: DriverConsoles, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } finally {
-    await close();
+    await c.close();
   }
 }

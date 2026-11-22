@@ -1,8 +1,15 @@
 import type { Action, Step } from "./board";
 import type { Config } from "./config";
 import { diff } from "./diff";
+import { type Consoles, type Stopped, withHandoff } from "./handoff";
 import { plan } from "./plan";
-import { type GoogleConsole, type Lists, sameList, sameLists } from "./recipes/google/console";
+import {
+  type GoogleConsole,
+  type Lists,
+  ReauthRequired,
+  sameList,
+  sameLists,
+} from "./recipes/google/console";
 import type { Planned } from "./state";
 
 export type ApplyIO = {
@@ -15,8 +22,11 @@ export type ApplyIO = {
 export type ApplyOutcome =
   | { result: "changed"; read: Lists }
   | { result: "declined" }
+  | { result: "refused"; error: Error }
   | { result: "applied"; saved: Lists }
-  | { result: "failed"; error: Error };
+  | { result: "landed"; saved: Lists }
+  | { result: "failed"; error: Error }
+  | Stopped;
 
 const KEYS = ["redirectUris", "jsOrigins"] as const;
 export const LIST_TITLE: Record<keyof Lists, string> = {
@@ -64,40 +74,75 @@ export function mismatch(saved: Lists, next: Lists) {
   return `Saved, but Google shows a different list: ${lists.join("; ")}.`;
 }
 
+/**
+ * A Save Google confirmed but busbar couldn't read back: its adds count as there, its
+ * removals not yet as gone. Ownership from this never claims more than was proven.
+ */
+function knownAfterSave(read: Lists, next: Lists): Lists {
+  const both = (k: keyof Lists) => [...new Set([...read[k], ...next[k]])];
+  return { redirectUris: both("redirectUris"), jsOrigins: both("jsOrigins") };
+}
+
 export async function applyPlan(
-  gc: GoogleConsole,
+  c: Consoles,
   planned: Planned,
   steps: Step[],
   io: ApplyIO,
 ): Promise<ApplyOutcome> {
+  let confirmed = false;
+  let unread = false;
+  const settled = (result: "applied" | "landed", saved: Lists): ApplyOutcome => {
+    for (const s of steps) io.emit({ type: "settle", id: s.id });
+    io.emit({ type: "apply-done" });
+    return { result, saved };
+  };
+  const readBack = (saved: Lists): ApplyOutcome => {
+    const asPlanned = sameLists(saved, planned.next);
+    io.saved(saved, asPlanned);
+    if (!asPlanned) return fail(new Error(mismatch(saved, planned.next)));
+    return settled("applied", saved);
+  };
   const fail = (error: Error): ApplyOutcome => {
     for (const s of steps) io.emit({ type: "fail", id: s.id, note: error.message });
     return { result: "failed", error };
   };
-  let read: Lists;
+
+  const attempt = async (gc: GoogleConsole, round: number): Promise<ApplyOutcome> => {
+    const read = await gc.read();
+    if (unread) return readBack(read);
+    if (round > 0) io.emit({ type: "plan" });
+    if (!sameLists(read, planned.read)) {
+      if (!sameLists(read, planned.next)) return { result: "changed", read };
+      io.saved(read, true);
+      io.emit({ type: "start" });
+      return settled("landed", read);
+    }
+    if (!confirmed) {
+      io.show(read, planned.next);
+      const n = changes(read, planned.next);
+      try {
+        if (!(await io.confirm(n.adds + n.removes))) return { result: "declined" };
+      } catch (e) {
+        return { result: "refused", error: e as Error };
+      }
+      confirmed = true;
+    }
+    io.emit({ type: "start" });
+    for (const s of steps) io.emit({ type: "activate", id: s.id });
+    try {
+      return readBack((await gc.write(planned.next)).saved);
+    } catch (e) {
+      if (e instanceof ReauthRequired && e.afterSave) {
+        unread = true;
+        io.saved(knownAfterSave(read, planned.next), false);
+      }
+      throw e;
+    }
+  };
+
   try {
-    read = await gc.read();
+    return await withHandoff(c, steps, io.emit, attempt);
   } catch (e) {
     return fail(e as Error);
   }
-  if (!sameLists(read, planned.read)) return { result: "changed", read };
-
-  io.show(read, planned.next);
-  const c = changes(read, planned.next);
-  if (!(await io.confirm(c.adds + c.removes))) return { result: "declined" };
-
-  io.emit({ type: "start" });
-  for (const s of steps) io.emit({ type: "activate", id: s.id });
-  let saved: Lists;
-  try {
-    ({ saved } = await gc.write(planned.next));
-  } catch (e) {
-    return fail(e as Error);
-  }
-  const asPlanned = sameLists(saved, planned.next);
-  io.saved(saved, asPlanned);
-  if (!asPlanned) return fail(new Error(mismatch(saved, planned.next)));
-  for (const s of steps) io.emit({ type: "settle", id: s.id });
-  io.emit({ type: "apply-done" });
-  return { result: "applied", saved };
 }

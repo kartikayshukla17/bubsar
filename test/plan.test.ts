@@ -252,17 +252,60 @@ describe("bb plan fails closed", () => {
   });
 
   it.each([
-    ["the session has expired", { session: "signed-out" }],
-    ["the client page bounces to sign-in", { fail: { reauth: "read" } }],
-  ])("when %s: says to log in again, exits 1, drops the stale plan", (_, google) => {
-    const p = planned(google);
-    const before = snapshot(p.dir);
-    const r = p.bb("plan", "--tunnel", NEW);
-    expect(r.stdout).toBe("");
-    expect(r.stderr).toBe("bb: session expired; run `bb login google`\n");
-    expect(r.code).toBe(1);
-    expectOnlyPlanDropped(p.dir, before, "session expired; run `bb login google`", ["local.json"]);
-    expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
+    [
+      "the session has expired",
+      { session: "signed-out" },
+      "accounts.google.com/v3/signin/identifier",
+    ],
+    [
+      "the client page bounces to sign-in",
+      { fail: { reauth: "read" } },
+      "accounts.google.com/v3/signin/challenge/pwd",
+    ],
+  ])(
+    "when %s and you stop at the handoff: exits 2, drops the stale plan, strips in Your turn",
+    (_, google, page) => {
+      const p = planned(google);
+      const state = JSON.parse(p.read(".busbar/state.json"));
+      const note = `Google wants you to sign in again. busbar opened Brave on its profile at ${page}.`;
+      const r = p.bbInput("", "plan", "--tunnel", NEW);
+      expect(r.stdout).toBe(
+        `\n${note}\nFinish there, then press Enter here and busbar reads the client again. Ctrl-C stops here; nothing changes in Google.\n`,
+      );
+      expect(r.stderr).toBe(
+        `bb: Stopped at your turn, before busbar could read the client. Nothing was changed in Google. Run \`bb plan --tunnel ${NEW}\` again to carry on.\n`,
+      );
+      expect(r.code).toBe(2);
+      expect(JSON.parse(p.read(".busbar/state.json"))).toEqual({
+        ...state,
+        google: { ...state.google, planned: null },
+      });
+      const { board } = JSON.parse(p.read(".busbar/run.json"));
+      expect(board.phase).toBe("handoff");
+      expect(board.steps.map((st: { from: null; to: string }) => [st.from, st.to])).toEqual([
+        [null, `${NEW}${CB}`],
+        [null, NEW],
+      ]);
+      for (const strip of Object.values(board.strips))
+        expect(strip).toEqual({ bay: "turn", mark: "handoff", fresh: true, note });
+      expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
+      expect(p.world().openPlainCalls.at(-1).url).toMatch(new RegExp(`^https://${page}`));
+    },
+  );
+
+  it("when the session has expired and you sign in: Enter, then busbar reads the client and plans", () => {
+    const p = planned({ session: "signed-out" });
+    const r = p.bbInput("\n", "plan", "--tunnel", NEW);
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("Read just now from the Cloud console in busbar's Brave profile.");
+    const google = JSON.parse(p.read(".busbar/state.json")).google;
+    expect(google.planned.values).toEqual({ "tunnel.url": NEW });
+    expect(google.planned.read).toEqual(client);
+    expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-in");
+    const { board } = JSON.parse(p.read(".busbar/run.json"));
+    expect(board.phase).toBe("planned");
+    expect(board.steps.map((st: { from: string }) => st.from)).toEqual([`${OLD}${CB}`, ""]);
   });
 
   it("when closing the browser also fails: reports the read's error, and the close on its own line", () => {

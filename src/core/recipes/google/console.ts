@@ -24,10 +24,20 @@ export class SelectorMissing extends Error {
   }
 }
 
-/** Google sent the profile to sign-in. Judged by the URL's host, never by page text. */
+/**
+ * Google sent the profile to sign-in. Judged by the URL's host, never by page text.
+ * `afterSave`: Google had already confirmed a Save that busbar couldn't read back.
+ */
 export class ReauthRequired extends Error {
-  constructor(readonly url: string) {
-    super("session expired; run `bb login google`");
+  constructor(
+    readonly url: string,
+    readonly afterSave = false,
+  ) {
+    super(
+      afterSave
+        ? "Google confirmed the Save, then sent busbar's profile to sign-in before busbar could read the client back."
+        : "Google sent busbar's profile to sign-in.",
+    );
     this.name = "ReauthRequired";
   }
 }
@@ -128,6 +138,7 @@ export class PageGoogleConsole implements GoogleConsole {
     try {
       return { saved: await this.read() };
     } catch (e) {
+      if (e instanceof ReauthRequired) throw new ReauthRequired(e.url, true);
       if (!(e instanceof SelectorMissing)) throw e;
       throw new Error(
         `Google confirmed the Save, but busbar couldn't read the client back (Google console layout changed: \`${e.selector}\` not found). Run \`bb plan\` to see what it holds.`,

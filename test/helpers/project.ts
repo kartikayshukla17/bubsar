@@ -46,6 +46,16 @@ export function project(toml = SAMPLE_TOML, world: object = EMPTY_WORLD) {
       const r = spawnSync(process.execPath, [BB, ...args], { cwd: dir, env, encoding: "utf8" });
       return { code: r.status, stdout: r.stdout, stderr: r.stderr };
     },
+    /** `bb` with `input` piped to stdin, then closed: "\n" presses Enter, "" is EOF. */
+    bbInput: (input: string, ...args: string[]) => {
+      const r = spawnSync(process.execPath, [BB, ...args], {
+        cwd: dir,
+        env,
+        encoding: "utf8",
+        input,
+      });
+      return { code: r.status, stdout: r.stdout, stderr: r.stderr };
+    },
     /** `bb` without blocking this process, so a stub server here can answer it. */
     bbAsync: (args: string[], extra: Record<string, string> = {}) =>
       new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {

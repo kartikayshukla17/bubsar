@@ -3,7 +3,8 @@ import { join } from "node:path";
 import type { Lists } from "../recipes/google/console";
 import type { Session } from "../session";
 import { type BrowserId, type InstalledBrowser, KNOWN } from "./browsers";
-import type { BrowserDriver, Page } from "./driver";
+import type { BrowserDriver, Page, PlainEnd } from "./driver";
+import { type EnterWait, untilEnter } from "./enter";
 
 /**
  * The fake world (`BB_FAKE=<file>`): what CLI tests use instead of real browsers and real
@@ -23,9 +24,16 @@ export type FakeWorld = {
     /**
      * Scripted failures of the console page, for the fake Google recipe:
      * `missingSelector` (a name from selectors.ts) makes the read fail as layout drift;
-     * `reauth: "read"` bounces the client page to sign-in although the session looked fine.
+     * `reauth` bounces the client page to sign-in although the session looked fine, at the
+     * read, between the edits and Save, or at the read-back after a confirmed Save. Each
+     * plain window the user signs in at clears one, so a list scripts several in turn.
      */
-    fail?: { missingSelector?: string; reauth?: "read"; saveError?: string; savedAs?: Lists };
+    fail?: {
+      missingSelector?: string;
+      reauth?: ReauthAt | ReauthAt[];
+      saveError?: string;
+      savedAs?: Lists;
+    };
   };
   /** Written by the fake Google recipe: every console operation, in order. */
   consoleCalls?: ({ op: "read"; url: string } | { op: "save"; url: string; lists: Lists })[];
@@ -36,6 +44,13 @@ export type FakeWorld = {
   /** Written by the fake: every automated attach. */
   attachCalls?: { browser: BrowserId; profileDir: string; headless: boolean }[];
 };
+
+export type ReauthAt = "read" | "save" | "readback";
+
+export function scriptedReauth(w: FakeWorld): ReauthAt | undefined {
+  const r = w.google.fail?.reauth;
+  return Array.isArray(r) ? r[0] : r;
+}
 
 export function readWorld(file: string): FakeWorld {
   return JSON.parse(readFileSync(file, "utf8"));
@@ -54,7 +69,10 @@ const PIXEL =
 const ACCOUNTS = "https://accounts.google.com/v3/signin/identifier";
 
 export class FakeDriver implements BrowserDriver {
-  constructor(private readonly file: string) {}
+  constructor(
+    private readonly file: string,
+    private readonly o: { untilEnter?: (signal?: AbortSignal) => Promise<EnterWait> } = {},
+  ) {}
 
   detect(): InstalledBrowser[] {
     const { browsers } = readWorld(this.file);
@@ -64,11 +82,22 @@ export class FakeDriver implements BrowserDriver {
     }));
   }
 
-  async openPlain(browser: InstalledBrowser, profileDir: string, url: string) {
+  /** The user signs in as the window opens (unless `userSignsIn` is false), then answers on stdin. */
+  async openPlain(
+    browser: InstalledBrowser,
+    profileDir: string,
+    url: string,
+    o: { signal?: AbortSignal } = {},
+  ): Promise<PlainEnd> {
     updateWorld(this.file, (w) => {
       w.openPlainCalls = [...(w.openPlainCalls ?? []), { browser: browser.id, profileDir, url }];
-      if (w.google.userSignsIn !== false) w.google.session = "signed-in";
+      if (w.google.userSignsIn === false) return;
+      w.google.session = "signed-in";
+      const fail = w.google.fail;
+      if (Array.isArray(fail?.reauth) && fail.reauth.length > 1) fail.reauth.shift();
+      else delete fail?.reauth;
     });
+    return (this.o.untilEnter ?? untilEnter)(o.signal);
   }
 
   async attach(browser: InstalledBrowser, profileDir: string, o: { headless: boolean }) {

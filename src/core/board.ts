@@ -103,6 +103,7 @@ export type Action =
   | { type: "start" }
   | { type: "activate"; id: string }
   | { type: "settle"; id: string }
+  | { type: "handoff"; id: string; note?: string }
   | { type: "handoff-done"; id: string }
   | { type: "apply-done" }
   | { type: "fail"; id: string; note: string }
@@ -152,6 +153,11 @@ export function reduce(s: BoardState, a: Action): BoardState {
         cursor: idx + 1,
       };
     }
+    case "handoff":
+      return {
+        ...patch(s, a.id, { bay: "turn", mark: "handoff", fresh: true, note: a.note }),
+        phase: "handoff",
+      };
     case "handoff-done":
       return {
         ...patch(s, a.id, { bay: "cleared", mark: "applied", fresh: true, note: undefined }),

@@ -97,11 +97,21 @@ export function printApply(config: Config, read: Lists, next: Lists, browserName
   return lines.join("\n");
 }
 
-export function printApplied(read: Lists, next: Lists): string {
+const appliedLine = (read: Lists, next: Lists) => {
   const c = changes(read, next);
+  return `${plural(c.adds + c.removes, "change")} applied: ${c.adds} added, ${c.removes} removed. Not verified: nothing has checked that Google accepts the new redirect URI yet.`;
+};
+
+export function printApplied(read: Lists, next: Lists): string {
+  return ["Saved. Google's lists read back exactly as planned.", appliedLine(read, next), ""].join(
+    "\n",
+  );
+}
+
+export function printLanded(read: Lists, next: Lists): string {
   return [
-    "Saved. Google's lists read back exactly as planned.",
-    `${plural(c.adds + c.removes, "change")} applied: ${c.adds} added, ${c.removes} removed. Not verified: nothing has checked that Google accepts the new redirect URI yet.`,
+    "Google already holds exactly the planned lists: an earlier Save landed. busbar recorded its entries and wrote nothing.",
+    appliedLine(read, next),
     "",
   ].join("\n");
 }

@@ -21,14 +21,25 @@ export interface Page {
   close(): Promise<void>;
 }
 
+/**
+ * How the wait at a plain window ended: Enter in the terminal, the browser quit (Cmd-Q),
+ * stdin closed, or the caller's signal (Ctrl-C).
+ */
+export type PlainEnd = "enter" | "closed" | "eof" | "stopped";
+
 export interface BrowserDriver {
   detect(): InstalledBrowser[];
   /**
    * Un-automated window on the profile. Resolves when the user presses Enter in the
-   * terminal or the browser process exits; then makes sure the process is gone so the
-   * profile is unlocked.
+   * terminal, the browser process exits, stdin closes or `signal` fires; then makes sure
+   * the process is gone so the profile is unlocked.
    */
-  openPlain(browser: InstalledBrowser, profileDir: string, url: string): Promise<void>;
+  openPlain(
+    browser: InstalledBrowser,
+    profileDir: string,
+    url: string,
+    o?: { signal?: AbortSignal },
+  ): Promise<PlainEnd>;
   attach(browser: InstalledBrowser, profileDir: string, o: { headless: boolean }): Promise<Page>;
 }
 
