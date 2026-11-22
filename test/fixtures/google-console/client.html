@@ -64,7 +64,11 @@
           { "aria-label": label },
           h("h2", {}, label),
           items,
-          h("button", { type: "button", onclick: () => add("").querySelector("input").focus() }, "+ Add URI"),
+          h(
+            "button",
+            { type: "button", "aria-label": "Add URI", onclick: () => add("").querySelector("input").focus() },
+            "+ Add URI",
+          ),
         );
       }
 

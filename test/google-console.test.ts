@@ -55,6 +55,9 @@ describe.skipIf(!browser)(
       expect(missing).toEqual([]);
     });
 
+    /** How the stand-in labels each entry's text field: `URIs N`. */
+    const INPUT_LABEL = 'querySelector("input").setAttribute("aria-label", `URIs';
+
     const recipe = () =>
       new PageGoogleConsole(page, {
         url: clientUrl(standIn.origin, STAND_IN.projectId, STAND_IN.clientId),
@@ -84,18 +87,25 @@ describe.skipIf(!browser)(
     it.each([
       [
         "a renamed section",
-        'list("Authorized redirect URIs"',
-        'list("Redirect URIs"',
+        [['list("Authorized redirect URIs"', 'list("Redirect URIs"']],
         "redirectUris",
       ],
+      ["renamed entry fields", [[INPUT_LABEL, INPUT_LABEL.slice(0, -1)]], "redirectUriInputs"],
       [
-        "renamed entry fields",
-        'querySelector("input").setAttribute("aria-label", `URIs',
-        'querySelector("input").setAttribute("aria-label", `URI',
+        "entry fields and delete buttons both renamed",
+        [
+          [INPUT_LABEL, INPUT_LABEL.slice(0, -1)],
+          ["`Delete URIs", "`Remove URIs"],
+        ],
         "redirectUriInputs",
       ],
-    ] as const)("fails closed on %s, naming the selector", async (_, from, to, name) => {
-      standIn.set.rewrite = [[from, to]];
+      [
+        "a section that rendered without its Add URI button",
+        [['"aria-label": "Add URI"', '"aria-label": "New URI"']],
+        "redirectUriAdd",
+      ],
+    ] as const)("fails closed on %s, naming the selector", async (_, rewrite, name) => {
+      standIn.set.rewrite = rewrite.map(([from, to]) => [from, to]);
       const err = await recipe()
         .read()
         .catch((e: unknown) => e);

@@ -196,8 +196,38 @@ describe("bb plan fails closed", () => {
   const client = { redirectUris: [`${OLD}${CB}`], jsOrigins: [OLD] };
   const owned = { redirectUris: [`${OLD}${CB}`], jsOrigins: [] };
 
-  it("when a recorded selector isn't found: names it, exits 1, writes nothing", () => {
-    const p = signedIn(client, owned, { fail: { missingSelector: "redirectUris" } });
+  /**
+   * A project whose last `bb plan` (for an older tunnel) succeeded, so state.json holds a
+   * plan; then the console is scripted to fail with `google`.
+   */
+  function planned(google: object) {
+    const p = signedIn(client, owned);
+    expect(p.bb("plan", "--tunnel", OLD).code).toBe(0);
+    expect(JSON.parse(p.read(".busbar/state.json")).google.planned).not.toBeNull();
+    p.setWorld({ ...p.world(), google: { ...p.world().google, ...google } });
+    return p;
+  }
+
+  /** Every .busbar/ file unchanged, except state.json, whose only change is planned → null. */
+  function expectOnlyPlanDropped(
+    dir: string,
+    before: Record<string, string>,
+    except: string[] = [],
+  ) {
+    const after = snapshot(dir);
+    const { "state.json": was, ...rest } = before;
+    const { "state.json": now, ...restAfter } = after;
+    for (const f of except) {
+      delete rest[f];
+      delete restAfter[f];
+    }
+    expect(restAfter).toEqual(rest);
+    const old = JSON.parse(was);
+    expect(JSON.parse(now)).toEqual({ ...old, google: { ...old.google, planned: null } });
+  }
+
+  it("when a recorded selector isn't found: names it, exits 1, drops the stale plan, writes nothing else", () => {
+    const p = planned({ fail: { missingSelector: "redirectUris" } });
     const before = snapshot(p.dir);
     const r = p.bb("plan", "--tunnel", NEW);
     expect(r.stdout).toBe("");
@@ -205,23 +235,23 @@ describe("bb plan fails closed", () => {
       "bb: Google console layout changed: `redirectUris` not found. Nothing was changed.\n",
     );
     expect(r.code).toBe(1);
-    expect(snapshot(p.dir)).toEqual(before);
+    expectOnlyPlanDropped(p.dir, before);
     expect(p.world().google.client).toEqual(client);
   });
 
   it.each([
     ["the session has expired", { session: "signed-out" }],
     ["the client page bounces to sign-in", { fail: { reauth: "read" } }],
-  ])("when %s: says to log in again, exits 1, plans nothing", (_, google) => {
-    const p = signedIn(client, owned, google);
-    const state = p.read(".busbar/state.json");
+  ])("when %s: says to log in again, exits 1, drops the stale plan", (_, google) => {
+    const p = planned(google);
+    const before = snapshot(p.dir);
     const r = p.bb("plan", "--tunnel", NEW);
     expect(r.stdout).toBe("");
     expect(r.stderr).toBe("bb: session expired; run `bb login google`\n");
     expect(r.code).toBe(1);
-    expect(p.read(".busbar/state.json")).toBe(state);
-    expect(readdirSync(join(p.dir, ".busbar"))).not.toContain("run.json");
-    // The board's session chip tells the truth about the profile.
+    // The board's session chip tells the truth about the profile: local.json is the one
+    // other file a bounce to sign-in rewrites.
+    expectOnlyPlanDropped(p.dir, before, ["local.json"]);
     expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
   });
 

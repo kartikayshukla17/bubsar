@@ -1,5 +1,5 @@
 import type { Page } from "../../browser/driver";
-import { SELECTORS, type SelectorName } from "./selectors";
+import { LISTS, SELECTORS, type SelectorName } from "./selectors";
 
 /** The OAuth web client's two lists, as the console shows them, in order. */
 export type Lists = { redirectUris: string[]; jsOrigins: string[] };
@@ -82,11 +82,9 @@ export class PageGoogleConsole implements GoogleConsole {
     await this.page.goto(this.o.url);
     await this.notSignIn();
     await this.need("clientForm");
-    await this.need("redirectUris");
-    await this.need("jsOrigins");
     return {
-      redirectUris: await this.entries("redirectUriInputs", "redirectUriDeletes"),
-      jsOrigins: await this.entries("jsOriginInputs", "jsOriginDeletes"),
+      redirectUris: await this.list(LISTS.redirectUris),
+      jsOrigins: await this.list(LISTS.jsOrigins),
     };
   }
 
@@ -115,15 +113,20 @@ export class PageGoogleConsole implements GoogleConsole {
   }
 
   /**
-   * A list's entries. Every entry has a text field and a delete button; if the counts
-   * disagree, one of the two selectors no longer finds what it should, so the read fails
-   * instead of returning a list that's quietly short.
+   * One list's entries, failing closed on drift. The section and its Add URI button must be
+   * there (an empty list still has the button). Every input in the section must be an entry
+   * the entry selector finds, and every entry needs its delete button; if a count disagrees,
+   * a selector no longer finds what it should, so the read fails instead of returning a list
+   * that's quietly short.
    */
-  private async entries(inputs: SelectorName, deletes: SelectorName) {
-    const values = await this.page.values(SELECTORS[inputs]);
-    const buttons = (await this.page.values(SELECTORS[deletes])).length;
-    if (values.length !== buttons)
-      throw new SelectorMissing(values.length < buttons ? inputs : deletes);
+  private async list(l: (typeof LISTS)[keyof typeof LISTS]) {
+    await this.need(l.section);
+    await this.need(l.add);
+    const values = await this.page.values(SELECTORS[l.inputs]);
+    const fields = (await this.page.values(SELECTORS[l.fields])).length;
+    if (values.length !== fields) throw new SelectorMissing(l.inputs);
+    const deletes = (await this.page.values(SELECTORS[l.deletes])).length;
+    if (deletes !== values.length) throw new SelectorMissing(l.deletes);
     return values;
   }
 }

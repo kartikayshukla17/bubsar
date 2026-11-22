@@ -10,6 +10,7 @@ import {
   type GoogleConsole,
   type Lists,
   ReauthRequired,
+  SelectorMissing,
 } from "../core/recipes/google/console";
 import { describe, ensureRunDir, RUN_DIR, startRun } from "../core/run";
 import { consoleOrigin, readLocal, type Session, writeLocal } from "../core/session";
@@ -38,6 +39,16 @@ async function saveScreenshot(projectDir: string, gc: GoogleConsole) {
   }
 }
 
+/**
+ * Forget the last plan when this one couldn't read the console, so `bb apply` never acts on
+ * a plan the user didn't just see. Touches nothing else, and nothing at all when no plan stands.
+ */
+function dropPlan(projectDir: string) {
+  const state = readState(projectDir);
+  if (state.google?.planned)
+    writeState(projectDir, { ...state, google: { ...state.google, planned: null } });
+}
+
 /** `bb plan --tunnel <url> [--adopt] [--debug]` */
 export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
   const { values: flags } = parseArgs({
@@ -53,10 +64,7 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
   const profile = google && googleProfile(cwd, config.project.name, driver);
 
   if (!google || !profile) {
-    // Nothing can be read, so no earlier plan may stand in for this one.
-    const state = readState(cwd);
-    if (state.google?.planned)
-      writeState(cwd, { ...state, google: { ...state.google, planned: null } });
+    dropPlan(cwd);
     const steps = plan(config, values);
     startRun(cwd, base, { type: "plan", steps });
     process.stdout.write(printPlan(config, steps));
@@ -82,6 +90,9 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
   try {
     read = await gc.read();
   } catch (e) {
+    // A plan that failed to read leaves no plan behind: an earlier one (maybe for another
+    // tunnel) must never be what bb apply acts on.
+    if (e instanceof SelectorMissing || e instanceof ReauthRequired) dropPlan(cwd);
     if (e instanceof ReauthRequired) record("signed-out");
     if (flags.debug) await saveScreenshot(cwd, gc);
     throw e;

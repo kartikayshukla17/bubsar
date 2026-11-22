@@ -80,8 +80,10 @@ in headless Brave and against the fake world; **nothing here has touched the rea
   snapshot of the real page. Ruled that way for this pass; the snapshot is pending (step 3).
 - *Breaking a selector:* proven on the stand-in (seam 2) and in the fake world (seam 3: exit
   1, the exact message, every `.busbar/` file byte-for-byte unchanged). Not yet against the
-  sandbox client (step 7). The board does not show a `failed` strip yet: the `fail` action
-  and `failed` mark are BB-04's. Today a failed plan writes no run at all.
+  sandbox client (step 7). "No writes" means no provider writes: the failed plan also drops
+  `state.json` `planned` to null and changes no other `.busbar/` file. The board does not
+  show a `failed` strip yet: the `fail` action and `failed` mark are BB-04's. Today a failed
+  plan writes no run at all.
 - The other four need the sandbox client.
 
 ### Tests added
@@ -97,8 +99,9 @@ in headless Brave and against the fake world; **nothing here has touched the rea
   (every selector in `selectors.ts` matches the stand-in); read both lists in order from the
   deep link (server log shows `/auth/clients/<id>?project=<pid>`); empty list; a renamed
   section → `SelectorMissing("redirectUris")`; renamed entry fields →
-  `SelectorMissing("redirectUriInputs")` (caught by the entry/delete-button count
-  cross-check); sign-in bounce by HTTP 302 and by a script redirect after load →
+  `SelectorMissing("redirectUriInputs")`; entry fields *and* delete buttons both renamed →
+  `SelectorMissing("redirectUriInputs")` (every input in the section must be an entry the
+  entry selector finds); a section without its Add URI button → `SelectorMissing("redirectUriAdd")`; sign-in bounce by HTTP 302 and by a script redirect after load →
   `ReauthRequired`; screenshot is a PNG.
 - **Seam 3** `test/plan.test.ts` (13): never logged in keeps BB-01's unknown plan and says to
   run `bb login google` (no browser); the full table; state.json `planned` / run steps /
@@ -117,9 +120,19 @@ in headless Brave and against the fake world; **nothing here has touched the rea
   count. Likely-stale entries are kept unless `--adopt`; adopting needs no ownership write,
   because the adopted entry is in `planned.next`'s removals and BB-04 drops removed entries
   from `owned` anyway.
-- **Failure writes nothing:** `SelectorMissing` leaves every `.busbar/` file untouched.
-  `ReauthRequired` writes only `local.json` `session: "signed-out"`, so the board's session
-  chip stays honest. A successful read records `signed-in`.
+- **A failed read leaves no plan (review ruling):** on `SelectorMissing` and
+  `ReauthRequired`, `bb plan` sets `state.json` `google.planned` to null and writes nothing
+  else to state. `ReauthRequired` also records `local.json` `session: "signed-out"`, so the
+  board's session chip stays honest. A successful read records `signed-in`.
+- **Fail closed per list:** each list needs its section and its Add URI button (present even
+  when the list is empty); the entry inputs must account for every input in the section;
+  every entry needs a delete button. A count that disagrees names the selector that drifted.
+  Residual gap: if a section rendered with *no* inputs at all (entries not yet rendered, or
+  turned into non-input elements), it reads as empty. Real-world step 4 checks for that.
+- **BB-04 handoff:** `bb apply` must re-read the console and refuse unless `planned` isn't
+  null, the current read equals `planned.read`, and the current desired lists (busbar.toml +
+  `--tunnel`) are the ones that produced `planned.next`. (`planned` doesn't record the desired
+  lists or tunnel yet: BB-04 should add that, or recompute `next` and compare.)
 - **Never logged in** = no `local.json` google record, or that browser's profile is gone.
   The unread plan clears any earlier `planned` read, so `bb apply` can't act on a stale plan.
 - **Reauth detection:** any URL on the accounts host (`accounts.google.com` in production),
