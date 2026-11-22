@@ -3,7 +3,7 @@ import type { Step } from "./board";
 import type { Ending } from "./exit";
 import type { Stopped } from "./handoff";
 import { type Lists, sameLists } from "./recipes/google/console";
-import type { GoogleState, Planned } from "./state";
+import type { Check, GoogleState, Planned } from "./state";
 import type { VerifyOutcome } from "./verify/verify";
 
 export type RewireIO = {
@@ -36,10 +36,8 @@ export async function rewire(io: RewireIO): Promise<RewireOutcome> {
   }
 }
 
-export function rewireEnding(o: RewireOutcome): Ending {
+export function rewireEnding(o: Exclude<RewireOutcome, { result: "wired" }>): Ending {
   switch (o.result) {
-    case "wired":
-      return { ended: "finished", required: [] };
     case "stopped":
       return { ended: "stopped" };
     case "failed":
@@ -68,4 +66,11 @@ export function alreadyWired(g: GoogleState, values: Record<string, string>, des
     held("redirectUris") &&
     held("jsOrigins")
   );
+}
+
+export function latestChecks(checks: Check[], uris: string[]) {
+  return uris.map((uri) => ({
+    uri,
+    result: checks.filter((c) => c.uri === uri).at(-1)?.result ?? null,
+  }));
 }

@@ -65,6 +65,8 @@ so the browser closes before it. Exit codes go through one pure function, shared
     verified or unexercised, and `unverified` when one is rejected or unknown. `follow`
     applies the next event, skips one the snapshot already holds, and asks for the
     snapshot again after a gap, another run, or no snapshot.
+  - `src/core/rewire.test.ts`: `latestChecks` gives each URI its last recorded result, in
+    the order asked, and null for a URI never checked.
   - `src/core/plan.test.ts`: each bad tunnel says why: not a URL, not https, a path, a
     query, a fragment.
 - **Seam 3**, `test/rewire.test.ts`:
@@ -74,12 +76,16 @@ so the browser closes before it. Exit codes go through one pure function, shared
     and the summary lines.
   - A bad `--tunnel` (http, a path, a query, a fragment): exit 1, the reason, and the fake
     world and state.json untouched, so zero attaches.
-  - Same tunnel again, with a pasted trailing slash: "Already wired", zero attaches, no
-    request to the verify stub, state.json, run.json and events.jsonl byte-identical.
+  - Same tunnel again after an accepted run, with a pasted trailing slash: "Already
+    wired", exit 0, zero attaches, no request to the verify stub, state.json, run.json
+    and events.jsonl byte-identical.
+  - Same tunnel again after a run Google hadn't accepted yet: exit 3, the URI named,
+    zero attaches, zero stub requests. After an apply that was never verified: exit 3,
+    "hasn't checked".
   - Same tunnel planned but never applied, and same tunnel present but an old busbar
     entry still to remove: not wired, carries on.
   - Google already holds what busbar.toml wants but state.json can't say so: one attach,
-    no Save, "Already wired".
+    no Save, "Already wired, but busbar hasn't checked …", exit 3.
   - Exit 2 at a handoff before Save and at the plan's read, with the rewire-specific stop
     messages. Exit 0 after a handoff you finish: two attaches, one plain window, one Save.
   - Exit 3 for unknown (network off) and for not accepted (mismatch), phase `unverified`,
@@ -108,9 +114,20 @@ so the browser closes before it. Exit codes go through one pure function, shared
 
   The output says busbar didn't open Google this time, and that `bb plan --tunnel <url>`
   reads the client again. It doesn't claim anything about the client since that read.
+- **Already wired, exit code (review fix).** The exit code follows the spec's table, not
+  a plain 0. busbar takes the latest recorded check in `google.checks` for each redirect
+  URI busbar.toml wants (`latestChecks` in `src/core/rewire.ts`), still with no browser
+  and no request:
+  - every one accepted: "Already wired. Run `bb verify` to re-check.", exit 0
+  - any rejected or unknown: "Already wired, but Google hasn't accepted <uri> yet. Run
+    `bb verify` to check again.", exit 3
+  - any never checked: "Already wired, but busbar hasn't checked <uri> with Google yet.
+    Run `bb verify` to check.", exit 3
+
+  So `bb rewire --tunnel X && deploy` never goes ahead on an unproven redirect URI.
 - **Already wired, after a read.** When state.json can't settle it, rewire reads the
-  client. If there's nothing to change it prints the plan, then "Already wired", and
-  exits 0 without verifying.
+  client. If there's nothing to change it prints the plan, then the same already-wired
+  line and exit code as above, without verifying.
 - **Exit codes.** `exitCode` in `src/core/exit.ts`. `bb verify` and `bb apply` return
   through it. Refusals that throw still exit 1 through `bb.ts`.
 - **Board phase after verify.** `verify-done` gives `verified` only when every strip is
@@ -158,8 +175,10 @@ so the browser closes before it. Exit codes go through one pure function, shared
 3. **Board opened mid-run (acceptance 3, by eye).** Repeat 1.2 with `--wait 600` while
    Google still answers mismatch, and open `bb ui` while it waits. The board must show
    the strips Cleared with the redirect strip checking, then follow to the end.
-4. **Rerun (acceptance 4).** Run the same `bb rewire --tunnel …` again. Expect "Already
-   wired. Run `bb verify` to re-check.", exit 0, and no Brave window or Dock icon.
+4. **Rerun (acceptance 4).** Run the same `bb rewire --tunnel …` again. After a run that
+   ended verified, expect "Already wired. Run `bb verify` to re-check.", exit 0, and no
+   Brave window or Dock icon. After a run that ended "not accepted yet", expect "Already
+   wired, but Google hasn't accepted … yet.", exit 3, and still no browser.
 5. **Answering no.** Repeat 1.2 and answer `N`. Expect "Not applied: you answered no.
    Nothing changed in Google.", exit 1, and the client unchanged.
 6. **Screen capture (acceptance 7).** Record the terminal and `bb ui` side by side for

@@ -151,16 +151,17 @@ describe("bb rewire --tunnel <url>", () => {
     expect(p.world().google.client).toEqual(next);
   });
 
-  it("when Google already holds what busbar.toml wants but state.json can't say so: reads, says already wired, exits 0", async () => {
+  it("when Google already holds what busbar.toml wants but state.json can't say so: reads, says already wired but never checked, exits 3", async () => {
     const p = signedIn(next, { redirectUris: [], jsOrigins: [] });
     const before = attaches(p.world());
     const r = p.bb("rewire", "--tunnel", NEW, "--yes", "--wait", "0");
     expect(r.stderr).toBe("");
-    expect(r.code).toBe(0);
+    expect(r.code).toBe(3);
     expect(r.stdout).toMatch(/^busbar rewire · enquiry-to-paid\n/);
-    expect(r.stdout).toMatch(
-      /Nothing to change: the client already has what busbar.toml declares\.\n\nAlready wired\. Run `bb verify` to re-check\.\n$/,
+    expect(r.stdout).toContain(
+      `Nothing to change: the client already has what busbar.toml declares.\n\nAlready wired, but busbar hasn't checked ${NEW}${CB} with Google yet. Run \`bb verify\` to check.\n`,
     );
+    expect(r.stdout.endsWith("Run `bb verify` to check.\n")).toBe(true);
     expect(attaches(p.world()) - before).toBe(1);
     expect(saves(p.world())).toBe(0);
     expect(actions(p.read)).toEqual(["plan"]);
@@ -359,5 +360,50 @@ describe("bb rewire refuses before any browser", () => {
     });
     expect(p.world().attachCalls).toBeUndefined();
     expect(p.world().openPlainCalls).toBeUndefined();
+  });
+});
+
+describe("bb rewire with the same tunnel: the exit code follows the last recorded check", () => {
+  const basis = `busbar didn't open Google this time: its last read of the client, for this tunnel, already held every entry busbar.toml wants. \`bb plan --tunnel ${NEW}\` reads it again.`;
+
+  it("3 when Google hadn't accepted the redirect URI: no browser, no request", async () => {
+    const p = signedIn(client, owned);
+    stub = await authStub(() => "mismatch-error-redirect");
+    const env = { BB_GOOGLE_AUTH_URL: stub.url };
+    const first = await p.bbAsync(["rewire", "--tunnel", NEW, "--yes", "--wait", "0"], env);
+    expect(first.code).toBe(3);
+    const world = p.world();
+    const asked = stub.requests.length;
+
+    const r = await p.bbAsync(["rewire", "--tunnel", NEW, "--yes", "--wait", "0"], env);
+    expect(r).toEqual({
+      code: 3,
+      stderr: "",
+      stdout: [
+        `Already wired, but Google hasn't accepted ${NEW}${CB} yet. Run \`bb verify\` to check again.`,
+        basis,
+        "",
+      ].join("\n"),
+    });
+    expect(p.world()).toEqual(world);
+    expect(stub.requests).toHaveLength(asked);
+  });
+
+  it("3 when busbar never checked it: applied, not verified", () => {
+    const p = signedIn(client, owned);
+    expect(p.bb("plan", "--tunnel", NEW).code).toBe(0);
+    expect(p.bb("apply", "--yes").code).toBe(0);
+    const world = p.world();
+    const r = p.bb("rewire", "--tunnel", NEW, "--yes", "--wait", "0");
+    expect(r).toEqual({
+      code: 3,
+      stderr: "",
+      stdout: [
+        `Already wired, but busbar hasn't checked ${NEW}${CB} with Google yet. Run \`bb verify\` to check.`,
+        basis,
+        "",
+      ].join("\n"),
+    });
+    expect(p.world()).toEqual(world);
   });
 });

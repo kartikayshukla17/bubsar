@@ -3,9 +3,15 @@ import type { ApplyOutcome } from "../core/apply";
 import { driverFromEnv } from "../core/browser/driver";
 import { loadConfig } from "../core/config";
 import type { Diff } from "../core/diff";
-import { exitCode } from "../core/exit";
+import { type Ending, exitCode } from "../core/exit";
 import { desiredLists, resolveValues } from "../core/plan";
-import { alreadyWired, type RewireOutcome, rewire, rewireEnding } from "../core/rewire";
+import {
+  alreadyWired,
+  latestChecks,
+  type RewireOutcome,
+  rewire,
+  rewireEnding,
+} from "../core/rewire";
 import { googleState, readState } from "../core/state";
 import { targets } from "../core/verify/verify";
 import { applyGoogle } from "./apply";
@@ -37,6 +43,22 @@ function stoppedMessage(o: Extract<RewireOutcome, { result: "stopped" }>, again:
     : `Stopped at your turn. Nothing was changed in Google. Run \`${again}\` again to carry on.`;
 }
 
+function wiredLine(latest: ReturnType<typeof latestChecks>) {
+  const notAccepted = latest.filter((l) => l.result && l.result !== "accepted").map((l) => l.uri);
+  const unchecked = latest.filter((l) => !l.result).map((l) => l.uri);
+  if (!notAccepted.length && !unchecked.length) return ALREADY;
+  const said: string[] = [];
+  if (notAccepted.length) said.push(`Google hasn't accepted ${notAccepted.join(", ")} yet`);
+  if (unchecked.length) said.push(`busbar hasn't checked ${unchecked.join(", ")} with Google yet`);
+  const run = unchecked.length ? "Run `bb verify` to check." : "Run `bb verify` to check again.";
+  return `Already wired, but ${said.join(", and ")}. ${run}`;
+}
+
+const wiredEnding = (latest: ReturnType<typeof latestChecks>): Ending => ({
+  ended: "finished",
+  required: latest.map((l) => l.result ?? "unknown"),
+});
+
 const savedLine = (o: ApplyOutcome) =>
   o.result === "landed"
     ? "Google already holds exactly the planned lists: an earlier Save landed. busbar recorded its entries and wrote nothing.\n"
@@ -63,11 +85,14 @@ export async function cmdRewire(argv: string[], driver = driverFromEnv()): Promi
     );
     return exitCode({ ended: "finished", required: [] });
   }
-  if (alreadyWired(googleState(readState(cwd)), values, desiredLists(config, values))) {
+  const gstate = googleState(readState(cwd));
+  const desired = desiredLists(config, values);
+  if (alreadyWired(gstate, values, desired)) {
+    const latest = latestChecks(gstate.checks, desired.redirectUris);
     process.stdout.write(
-      `${ALREADY}\nbusbar didn't open Google this time: its last read of the client, for this tunnel, already held every entry busbar.toml wants. \`bb plan --tunnel ${values["tunnel.url"]}\` reads it again.\n`,
+      `${wiredLine(latest)}\nbusbar didn't open Google this time: its last read of the client, for this tunnel, already held every entry busbar.toml wants. \`bb plan --tunnel ${values["tunnel.url"]}\` reads it again.\n`,
     );
-    return exitCode({ ended: "finished", required: [] });
+    return exitCode(wiredEnding(latest));
   }
   const profile = googleProfile(cwd, config.project.name, driver);
   if (!profile)
@@ -110,9 +135,11 @@ export async function cmdRewire(argv: string[], driver = driverFromEnv()): Promi
   );
 
   switch (out.result) {
-    case "wired":
-      process.stdout.write(`${ALREADY}\n`);
-      break;
+    case "wired": {
+      const latest = latestChecks(googleState(readState(cwd)).checks, desired.redirectUris);
+      process.stdout.write(`${wiredLine(latest)}\n`);
+      return exitCode(wiredEnding(latest));
+    }
     case "stopped":
       process.stderr.write(`bb: ${stoppedMessage(out, again)}\n`);
       break;
