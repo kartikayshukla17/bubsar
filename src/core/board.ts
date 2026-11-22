@@ -53,10 +53,15 @@ export type Step = {
   provider: string;
   field: string;
   tier: Tier;
-  /** the entry there now; null until busbar has read the provider */
+  /**
+   * The entry there now: null until busbar has read the provider, "" when the step adds a
+   * new entry (nothing is replaced).
+   */
   from: string | null;
-  /** the entry busbar will write */
+  /** the entry busbar will write; "" when the step removes `from` */
   to: string;
+  /** what busbar saw but leaves alone, e.g. likely-stale entries it doesn't own */
+  note?: string;
   /** extra values this step writes besides tunnel.url */
   alsoWrites?: ValueId[];
   handoff?: boolean;

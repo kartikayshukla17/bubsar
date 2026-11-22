@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  busbar's local stand-in for the Google Auth Platform OAuth web client page
+  (console.cloud.google.com/auth/clients/<client_id>?project=<project_id>).
+
+  HAND-BUILT, NOT A SNAPSHOT. src/core/recipes/google/selectors.ts was recorded against this
+  page, so both are PROVISIONAL until a scrubbed DOM snapshot of the live client page replaces
+  this file (BB-03 "Real-world checks pending").
+
+  Scrubbed by construction: the client ID is fake, and there is no client secret anywhere.
+  The live page also shows a client-secret section; busbar never reads it, so it isn't here.
+
+  Served by test/helpers/google-console.ts, which fills the bb-state script below with the
+  client's lists and switches. Like the console's SPA, the form renders after a beat.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Client ID for Web application · Google Auth Platform (busbar stand-in)</title>
+  </head>
+  <body>
+    <main id="app" aria-busy="true">Loading…</main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="error" role="alert"></div>
+    <script id="bb-state" type="application/json">"BB_STATE"</script>
+    <script>
+      const state = JSON.parse(document.getElementById("bb-state").textContent);
+      const h = (tag, attrs = {}, ...kids) => {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === "value") el.value = v;
+          else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+          else el.setAttribute(k, v);
+        }
+        el.append(...kids);
+        return el;
+      };
+
+      function list(label, values) {
+        const items = h("div", { role: "list" });
+        const renumber = () =>
+          [...items.children].forEach((li, i) => {
+            li.querySelector("input").setAttribute("aria-label", `URIs ${i + 1}`);
+            li.querySelector("button").setAttribute("aria-label", `Delete URIs ${i + 1}`);
+          });
+        const remove = (li) => {
+          li.remove();
+          renumber();
+        };
+        const add = (value) => {
+          const li = h(
+            "div",
+            { role: "listitem" },
+            h("input", { type: "text", value }),
+            h("button", { type: "button", onclick: () => remove(li) }, "🗑"),
+          );
+          items.append(li);
+          renumber();
+          return li;
+        };
+        values.forEach(add);
+        return h(
+          "section",
+          { "aria-label": label },
+          h("h2", {}, label),
+          items,
+          h("button", { type: "button", onclick: () => add("").querySelector("input").focus() }, "+ Add URI"),
+        );
+      }
+
+      const values = (label) =>
+        [...document.querySelectorAll(`section[aria-label="${label}"] input`)].map((i) => i.value);
+
+      async function save(event) {
+        event.preventDefault();
+        document.getElementById("toast").textContent = "";
+        document.getElementById("error").textContent = "";
+        const body = {
+          redirectUris: values("Authorized redirect URIs"),
+          jsOrigins: values("Authorized JavaScript origins"),
+        };
+        const res = await fetch(`${location.pathname}/save${location.search}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const out = await res.json();
+        if (res.ok) document.getElementById("toast").textContent = "OAuth client saved";
+        else document.getElementById("error").textContent = out.error;
+      }
+
+      function render() {
+        if (state.reauth === "script") {
+          location.href = `${state.accountsOrigin}/v3/signin/identifier?continue=${encodeURIComponent(location.href)}`;
+          return;
+        }
+        const app = document.getElementById("app");
+        app.replaceChildren(
+          h(
+            "form",
+            { "aria-label": "OAuth client", onsubmit: save },
+            h("h1", {}, "Client ID for Web application"),
+            h("p", {}, "Client ID ", h("code", {}, state.clientId)),
+            h("label", {}, "Name ", h("input", { name: "displayName", value: "Web client 1" })),
+            list("Authorized JavaScript origins", state.lists.jsOrigins),
+            list("Authorized redirect URIs", state.lists.redirectUris),
+            h("button", { type: "submit" }, "Save"),
+          ),
+        );
+        app.removeAttribute("aria-busy");
+      }
+      setTimeout(render, state.renderDelayMs);
+    </script>
+  </body>
+</html>

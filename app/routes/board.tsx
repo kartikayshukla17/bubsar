@@ -85,6 +85,7 @@ function liveStatus(s: BoardState): Status {
       return { text: "No plan yet in this project.", live: false };
     case "planned": {
       const unread = s.steps.filter((st) => st.from === null).length;
+      if (n === 0) return { text: "Plan ready: nothing to change.", live: false };
       return {
         text: `Plan ready: ${plural(n, "write")}. Nothing has changed yet.${unread ? ` ${unread} current ${unread === 1 ? "entry is" : "entries are"} unknown: busbar hasn't read the console.` : ""}`,
         live: false,

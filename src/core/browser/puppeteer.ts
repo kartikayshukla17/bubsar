@@ -123,6 +123,10 @@ class PuppeteerPage implements Page {
     return el ? el.evaluate((e) => (e.textContent ?? "").trim()) : null;
   }
 
+  screenshot() {
+    return this.tab.screenshot({ type: "png" });
+  }
+
   async close() {
     await this.browser.close();
   }

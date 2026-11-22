@@ -6,8 +6,8 @@ import { MARK_LABEL, Mark } from "~/components/mark";
 import { MarkLegend, SectorMap } from "~/components/sector-map";
 import { Strip } from "~/components/strip";
 import { ShaderBackground } from "~/components/ui/fluted-glass";
-import type { Mark as MarkKind, StripState } from "~/lib/board";
-import { DEMO_SCENE, demoBoard, STEPS } from "~/lib/demo";
+import type { Mark as MarkKind, Step, StripState } from "~/lib/board";
+import { DEMO_SCENE, demoBoard, NEW_TUNNEL, OLD_TUNNEL, STEPS } from "~/lib/demo";
 import type { Route } from "./+types/kit";
 
 export function meta(_: Route.MetaArgs) {
@@ -37,6 +37,32 @@ function Row({ title, note, children }: { title: string; note: string; children:
     </section>
   );
 }
+
+/** What `bb plan` emits once it has read the Google console: replace, add, remove. */
+const google = (id: string, from: string, to: string, note?: string): Step => ({
+  id,
+  destination: "google",
+  provider: "Google",
+  field: "Authorized redirect URI",
+  tier: "web",
+  from,
+  to,
+  note,
+  activeNote: "Editing your OAuth web client in your sandbox browser",
+  verify: { mark: "verified", note: "Google accepted the redirect_uri" },
+});
+const CB = "/api/auth/callback/google";
+const READ_STEPS = [
+  google("google-redirect-1", `${OLD_TUNNEL}${CB}`, `${NEW_TUNNEL}${CB}`),
+  google("google-redirect-2", "", `${NEW_TUNNEL}/auth/callback`),
+  google(
+    "google-redirect-remove-1",
+    `${OLD_TUNNEL}/auth/callback`,
+    "",
+    "Likely stale, kept: https://x.ngrok-free.app/api/auth/callback/google",
+  ),
+];
+const planned: StripState = { bay: "plan", mark: "planned", fresh: false };
 
 const st = (mark: MarkKind, note?: string): StripState => ({
   bay: "cleared",
@@ -172,6 +198,23 @@ export default function Kit() {
             />
           </div>
           <Strip step={STEPS[2]} index={3} total={STEPS.length} state={st("applied")} dimmed />
+        </div>
+      </Row>
+
+      <Row
+        title="Planned from the console"
+        note="After bb plan reads Google: a replace shows what it was, an add is a new entry, a remove strikes the old one. Entries busbar leaves alone ride along as a note."
+      >
+        <div className="bb-kit-rack grid gap-[6px]">
+          {READ_STEPS.map((step, i) => (
+            <Strip
+              key={step.id}
+              step={step}
+              index={i + 1}
+              total={READ_STEPS.length}
+              state={planned}
+            />
+          ))}
         </div>
       </Row>
 

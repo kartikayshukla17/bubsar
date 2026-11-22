@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Lists } from "../recipes/google/console";
 import type { Session } from "../session";
 import { type BrowserId, type InstalledBrowser, KNOWN } from "./browsers";
 import type { BrowserDriver, Page } from "./driver";
@@ -17,7 +18,17 @@ export type FakeWorld = {
     session: Session;
     /** Whether the user signs in when a plain window opens. Default true. */
     userSignsIn?: boolean;
+    /** The OAuth client's lists as the console shows them. Absent: both empty. */
+    client?: Lists;
+    /**
+     * Scripted failures of the console page, for the fake Google recipe:
+     * `missingSelector` (a name from selectors.ts) makes the read fail as layout drift;
+     * `reauth: "read"` bounces the client page to sign-in although the session looked fine.
+     */
+    fail?: { missingSelector?: string; reauth?: "read" };
   };
+  /** Written by the fake Google recipe: every console operation, in order. */
+  consoleCalls?: { op: "read"; url: string }[];
   /** Written by the fake: every un-automated window opened. */
   openPlainCalls?: { browser: BrowserId; profileDir: string; url: string }[];
   /** Written by the fake: every automated attach. */
@@ -28,11 +39,14 @@ export function readWorld(file: string): FakeWorld {
   return JSON.parse(readFileSync(file, "utf8"));
 }
 
-function updateWorld(file: string, change: (w: FakeWorld) => void) {
+export function updateWorld(file: string, change: (w: FakeWorld) => void) {
   const w = readWorld(file);
   change(w);
   writeFileSync(file, `${JSON.stringify(w, null, 2)}\n`);
 }
+
+const PIXEL =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 
 /** Where the fake sends a signed-out profile. Never fetched: it's only a URL string. */
 const ACCOUNTS = "https://accounts.google.com/v3/signin/identifier";
@@ -79,6 +93,10 @@ class FakePage implements Page {
     return this.#url;
   }
   async close() {}
+  /** A 1x1 PNG: the fake world has no pixels. */
+  async screenshot() {
+    return Uint8Array.from(Buffer.from(PIXEL, "base64"));
+  }
 
   exists(): Promise<boolean> {
     return unmodelled("exists");

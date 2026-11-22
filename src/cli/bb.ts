@@ -2,11 +2,8 @@ import { execFile } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { loadConfig } from "../core/config";
-import { plan, resolveValues } from "../core/plan";
-import { describe, startRun } from "../core/run";
 import { serve } from "./daemon";
-import { printPlan } from "./print";
+import { cmdPlan } from "./plan";
 import { cmdLogin, cmdLogout, cmdStatus } from "./session";
 
 declare const __BB_VERSION__: string;
@@ -14,20 +11,6 @@ declare const __BB_VERSION__: string;
 function fail(message: string): never {
   process.stderr.write(`bb: ${message}\n`);
   process.exit(1);
-}
-
-function cmdPlan(argv: string[]) {
-  const { values: flags } = parseArgs({ args: argv, options: { tunnel: { type: "string" } } });
-  const config = loadConfig(process.cwd());
-  const values: Record<string, string> = {};
-  if (flags.tunnel !== undefined) values["tunnel.url"] = flags.tunnel;
-  const steps = plan(config, values);
-  startRun(
-    process.cwd(),
-    { project: config.project.name, ...describe(config, resolveValues(config, values)) },
-    { type: "plan", steps },
-  );
-  process.stdout.write(printPlan(config, steps));
 }
 
 async function cmdUi(argv: string[]) {
@@ -55,7 +38,7 @@ try {
       process.stdout.write(`busbar ${__BB_VERSION__}\n`);
       break;
     case "plan":
-      cmdPlan(rest);
+      await cmdPlan(rest);
       break;
     case "ui":
       await cmdUi(rest);

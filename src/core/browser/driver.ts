@@ -14,6 +14,8 @@ export interface Page {
   fill(css: string, nth: number, value: string): Promise<void>;
   /** Trimmed text of the first match, or null when nothing matches. */
   text(css: string): Promise<string | null>;
+  /** PNG of the visible page. Only for `--debug`, which warns what it may show. */
+  screenshot(): Promise<Uint8Array>;
   /** Closes the whole automated browser, which unlocks the profile. */
   close(): Promise<void>;
 }

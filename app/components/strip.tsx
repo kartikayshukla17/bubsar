@@ -30,6 +30,20 @@ export function Strip({
   const turn = state.mark === "handoff";
   const busy = state.mark === "active" || state.mark === "checking";
 
+  const removes = step.to === "";
+  // What the plan does to the entry there now: replace it, add a new one, or remove it.
+  const change =
+    step.from === null ? (
+      "Current entry not read yet"
+    ) : step.from === "" ? (
+      "New entry"
+    ) : (
+      <span className="bb-strip__was">
+        {removes ? "" : "was "}
+        {short(step.from)}
+      </span>
+    );
+
   const second = state.note ? (
     <span
       key={state.note}
@@ -38,13 +52,14 @@ export function Strip({
       {state.note}
     </span>
   ) : state.mark === "drift" || state.mark === "planned" ? (
-    step.from === null ? (
-      <span className="bb-strip__sub">Current entry not read yet</span>
-    ) : (
-      <span className="bb-strip__was">was {short(step.from)}</span>
-    )
+    <span className="bb-strip__sub" title={step.note}>
+      {change}
+      {step.note ? ` · ${step.note}` : null}
+    </span>
   ) : (
-    <span className="bb-strip__sub">Written, not yet verified</span>
+    <span className="bb-strip__sub">
+      {removes ? "Removed, not yet verified" : "Written, not yet verified"}
+    </span>
   );
 
   return (
@@ -64,7 +79,7 @@ export function Strip({
         <span className="bb-strip__sub">{step.field}</span>
       </div>
       <div className="bb-strip__route">
-        <span className="bb-strip__value">{short(step.to)}</span>
+        <span className="bb-strip__value">{removes ? "Remove" : short(step.to)}</span>
         {second}
       </div>
       <div className="bb-strip__step">
