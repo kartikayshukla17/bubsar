@@ -93,7 +93,10 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
   const unread = plan(config, values);
   let handedOff = false;
   const emit = (a: Action) => {
-    if (!handedOff) startRun(cwd, base, { type: "plan", steps: unread });
+    if (!handedOff) {
+      dropPlan(cwd);
+      startRun(cwd, base, { type: "plan", steps: unread });
+    }
     handedOff = true;
     appendEvent(cwd, a);
   };
@@ -113,7 +116,6 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
     }),
   );
   if ("result" in out) {
-    dropPlan(cwd);
     process.stderr.write(
       `bb: Stopped at your turn, before busbar could read the client. Nothing was changed in Google. Run \`bb plan --tunnel ${values["tunnel.url"] ?? "<url>"}\` again to carry on.\n`,
     );

@@ -95,6 +95,10 @@ stay open.
   - a bounce at the read-back, EOF: exit 2, the message says Google confirmed the Save,
     adds are owned; a second `bb apply --yes` records what landed with no new Save
   - the automated browser won't close: no plain window, exit 1, strips `failed`
+  - a second bounce after a confirmed Save, then EOF: every message says the Save went
+    through
+  - `bb plan` killed (SIGKILL, SIGHUP) at its handoff: `planned` is null and `bb apply`
+    refuses
   - two bounces answered by one piped `"\n\n"`: two windows, one Save
 - Seam 3, rewritten: `test/plan.test.ts` (expired session or bounce, EOF → exit 2, stale
   plan dropped; expired session, Enter → plan completes) and `test/apply.test.ts`
@@ -125,8 +129,11 @@ stay open.
 - **If the automated browser won't close, no plain window opens.** A second launch on a
   profile that's still open would hand the page to the automated browser. busbar fails
   instead.
-- **Exit 2 on plan drops the stale plan,** as a failed read does. A handoff that resumes
-  and reads never drops it; the new plan replaces it.
+- **`bb plan` drops the stale plan at its first handoff,** before the wait, so a plan
+  killed or hung up while waiting can't leave an old tunnel's plan for `bb apply`. A
+  resume that reads writes the new plan.
+- **A second bounce while a confirmed Save is unread stays after-Save,** so the board,
+  the prompt and the stop all say the Save went through.
 - **`local.json`** goes to signed out at the handoff, and back to signed in when a resumed
   run reads the console.
 - **`isReauth` stays host-only.**

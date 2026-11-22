@@ -82,7 +82,6 @@ export class FakeDriver implements BrowserDriver {
     }));
   }
 
-  /** The user signs in as the window opens (unless `userSignsIn` is false), then answers on stdin. */
   async openPlain(
     browser: InstalledBrowser,
     profileDir: string,

@@ -199,6 +199,21 @@ describe("applyPlan hands a sign-in to you, then resumes from the read (BB-06)",
       ]);
     });
 
+    it("a second bounce at the resumed read still says the Save went through, and the stop says so", async () => {
+      const file = world({ fail: { reauth: ["readback", "read"] } });
+      const { c, said } = consoles(file, ["enter"]);
+      const r = recorder();
+
+      const out = await applyPlan(c, planned, steps, r.io);
+
+      expect(out).toMatchObject({ result: "stopped", reauth: { afterSave: true } });
+      expect(saves(file)).toHaveLength(1);
+      expect(r.notes).toEqual([note, note, note, note]);
+      expect(said).toHaveLength(2);
+      for (const text of said) expect(text).toContain("Ctrl-C stops here; the Save stands.");
+      expect(r.saved).toEqual([[known, false]]);
+    });
+
     it("stopping there keeps what's known on record and never re-sends the Save", async () => {
       const file = world({ fail: { reauth: "readback" } });
       const { c } = consoles(file, []);

@@ -189,4 +189,50 @@ describe("bb apply hands a sign-in to you, then carries on (BB-06)", () => {
     expect(p.world().openPlainCalls).toHaveLength(windows + 2);
     expect(saves(p.world())).toHaveLength(1);
   });
+
+  it("a second bounce after a confirmed Save, then a stop: every message still says the Save went through", () => {
+    const p = planned({ fail: { reauth: ["readback", "read"] } });
+    const r = p.bbInput("\n", "apply", "--yes");
+    const note =
+      "Google confirmed the Save, then asked you to sign in again before busbar could read the client back. busbar opened Brave on its profile at accounts.google.com/v3/signin/challenge/pwd.";
+    expect(r.stdout.split("Ctrl-C stops here; the Save stands.")).toHaveLength(3);
+    expect(r.stdout).not.toContain("nothing changes in Google");
+    expect(r.stderr).toBe(
+      "bb: Stopped at your turn. Google confirmed the Save, but busbar hasn't read the client back. Run `bb apply` again to read it and record what landed.\n",
+    );
+    expect(r.code).toBe(2);
+    expect(saves(p.world())).toHaveLength(1);
+    const { board } = JSON.parse(p.read(".busbar/run.json"));
+    for (const strip of Object.values(board.strips))
+      expect(strip).toEqual({ bay: "turn", mark: "handoff", fresh: true, note });
+  });
+});
+
+describe("bb plan killed while it waits at a handoff", () => {
+  it.each(["SIGKILL", "SIGHUP"] as const)(
+    "%s: the earlier plan is already gone, so bb apply can't act on it",
+    async (signal) => {
+      const p = planned({ session: "signed-out" });
+      expect(JSON.parse(p.read(".busbar/state.json")).google.planned).not.toBeNull();
+      const child = spawn(
+        process.execPath,
+        [BB, "plan", "--tunnel", "https://other.ngrok-free.app"],
+        {
+          cwd: p.dir,
+          env: p.env,
+        },
+      );
+      let stdout = "";
+      child.stdout.on("data", (c) => {
+        stdout += c;
+        if (stdout.includes("press Enter here")) child.kill(signal);
+      });
+      await new Promise((done) => child.on("close", done));
+      expect(stdout).toContain("press Enter here");
+      expect(JSON.parse(p.read(".busbar/state.json")).google.planned).toBeNull();
+      const r = p.bb("apply", "--yes");
+      expect(r.stderr).toBe("bb: No plan to apply. Run `bb plan --tunnel <url>` first.\n");
+      expect(saves(p.world())).toEqual([]);
+    },
+  );
 });

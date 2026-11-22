@@ -21,10 +21,6 @@ export interface Page {
   close(): Promise<void>;
 }
 
-/**
- * How the wait at a plain window ended: Enter in the terminal, the browser quit (Cmd-Q),
- * stdin closed, or the caller's signal (Ctrl-C).
- */
 export type PlainEnd = "enter" | "closed" | "eof" | "stopped";
 
 export interface BrowserDriver {

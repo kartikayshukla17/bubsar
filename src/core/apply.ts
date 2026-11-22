@@ -108,8 +108,14 @@ export async function applyPlan(
   };
 
   const attempt = async (gc: GoogleConsole, round: number): Promise<ApplyOutcome> => {
+    if (unread) {
+      try {
+        return readBack(await gc.read());
+      } catch (e) {
+        throw e instanceof ReauthRequired && !e.afterSave ? new ReauthRequired(e.url, true) : e;
+      }
+    }
     const read = await gc.read();
-    if (unread) return readBack(read);
     if (round > 0) io.emit({ type: "plan" });
     if (!sameLists(read, planned.read)) {
       if (!sameLists(read, planned.next)) return { result: "changed", read };

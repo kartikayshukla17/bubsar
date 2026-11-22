@@ -26,7 +26,6 @@ const pageOf = (url: string) => {
   }
 };
 
-/** What the board shows (`note`) and what the terminal adds (`prompt`). */
 export function handoffText(browser: string, e: ReauthRequired) {
   const opened = `busbar opened ${browser} on its profile at ${pageOf(e.url)}.`;
   return e.afterSave

@@ -137,7 +137,6 @@ export function Handoff({ onDone, onSkip }: { onDone: () => void; onSkip: () => 
   );
 }
 
-/** Read-only in v1: the Enter key in the terminal is what carries the run on. */
 export function LiveHandoff({ note, browser }: { note?: string; browser?: string }) {
   return (
     <div className="ml-[14px] mt-3 rounded-[6px] border border-rule bg-ink-3 p-5 sm:p-6">
