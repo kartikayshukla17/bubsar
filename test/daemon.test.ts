@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { request } from "node:http";
 import { networkInterfaces } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { BB, project } from "./helpers/project";
+import { BB, project, SAMPLE_TOML } from "./helpers/project";
 
 const TUNNEL = "https://abcd.ngrok-free.app";
 const running: ChildProcess[] = [];
@@ -11,8 +11,8 @@ afterEach(() => {
 });
 
 /** Start `bb ui` in a project and resolve with the URL it prints. */
-function ui(dir: string): Promise<URL> {
-  const child = spawn(process.execPath, [BB, "ui", "--no-open"], { cwd: dir });
+function ui(dir: string, env = process.env): Promise<URL> {
+  const child = spawn(process.execPath, [BB, "ui", "--no-open"], { cwd: dir, env });
   running.push(child);
   return new Promise((resolve, reject) => {
     let out = "";
@@ -89,5 +89,46 @@ describe("bb ui daemon", () => {
     const base = await ui(project().dir);
     const r = await get(new URL("/api/run", base), { Host: `attacker.example:${base.port}` });
     expect(r.status).toBe(403);
+  });
+});
+
+describe("bb ui session chip feed", () => {
+  it("serves the Google session at /api/session, with the browser's name", async () => {
+    const p = project(SAMPLE_TOML, { browsers: ["brave"], google: { session: "signed-out" } });
+    const base = await ui(p.dir, p.env);
+    expect(JSON.parse((await get(new URL("/api/session", base))).body)).toEqual({});
+
+    p.bb("login", "google");
+    const r = await get(new URL("/api/session", base));
+    expect(r.status).toBe(200);
+    const { google } = JSON.parse(p.read(".busbar/local.json"));
+    expect(JSON.parse(r.body)).toEqual({ google: { ...google, browserName: "Brave" } });
+  });
+
+  it("pushes a session event when a login in another terminal changes it", async () => {
+    const p = project(SAMPLE_TOML, { browsers: ["dia"], google: { session: "signed-out" } });
+    const base = await ui(p.dir, p.env);
+    const pushed = new Promise<{ google: { browserName: string; session: string } }>(
+      (resolve, reject) => {
+        request(new URL("/api/events", base), (res) => {
+          let buf = "";
+          res.on("data", (d) => {
+            buf += d;
+            for (const m of buf.matchAll(/^event: session\ndata: (.+)$/gm)) {
+              const e = JSON.parse(m[1]);
+              if (e.google?.session === "signed-in") resolve(e);
+            }
+          });
+        })
+          .on("error", reject)
+          .end();
+      },
+    );
+    await new Promise((r) => setTimeout(r, 100)); // let the stream open
+    const t0 = Date.now();
+    p.bb("login", "google");
+    const event = await pushed;
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(event.google).toMatchObject({ browserName: "Dia", session: "signed-in" });
   });
 });

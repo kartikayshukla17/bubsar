@@ -9,9 +9,13 @@ import { useState } from "react";
 import { BusbarMark, PikaIcon } from "~/components/icons";
 import type { Phase, Scene } from "~/lib/board";
 
+/** The board's session chip: `Google · Brave · signed in`, from `bb login` / `bb status`. */
+export type SessionChip = { text: string; title: string; ok: boolean };
+
 export function FlightBar({
   scene,
   phase,
+  session,
   onPlan,
   onApply,
   onVerify,
@@ -19,6 +23,7 @@ export function FlightBar({
 }: {
   scene: Scene;
   phase: Phase;
+  session?: SessionChip | null;
   onPlan: () => void;
   onApply: () => void;
   onVerify: () => void;
@@ -58,6 +63,14 @@ export function FlightBar({
               Demo data
             </span>
           )}
+          {session ? (
+            <span
+              className={`rounded-[4px] border border-rule-strong px-1.5 py-px text-[12px] ${session.ok ? "text-paper" : "text-mute"}`}
+              title={session.title}
+            >
+              {session.text}
+            </span>
+          ) : null}
         </div>
 
         <div className="order-last flex min-w-0 basis-full items-center gap-2 rounded-[5px] border border-rule bg-ink-2 py-1 pl-3 pr-1 lg:order-none lg:basis-auto lg:flex-1">

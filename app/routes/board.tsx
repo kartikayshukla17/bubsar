@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Bay } from "~/components/bay";
-import { FlightBar } from "~/components/flight-bar";
+import { FlightBar, type SessionChip } from "~/components/flight-bar";
 import { Handoff } from "~/components/handoff";
 import { Ledger } from "~/components/ledger";
 import { MarkLegend, SectorMap } from "~/components/sector-map";
@@ -19,6 +19,7 @@ import {
 } from "~/lib/board";
 import { boardAt, DEMO_SCENE, demoBoard, type Moment, OLD_TUNNEL, short } from "~/lib/demo";
 import type { Run, RunEvent } from "../../src/core/run";
+import type { Local } from "../../src/core/session";
 import type { Route } from "./+types/board";
 
 export function meta(_: Route.MetaArgs) {
@@ -112,9 +113,11 @@ function BoardView({
   controls,
   emptyPlan,
   footer,
+  session,
 }: {
   scene: Scene;
   board: BoardState;
+  session?: SessionChip | null;
   status: Status;
   send: (a: Action) => void;
   controls: {
@@ -146,7 +149,7 @@ function BoardView({
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 pb-20 sm:px-6">
-      <FlightBar scene={scene} phase={board.phase} {...controls} />
+      <FlightBar scene={scene} phase={board.phase} session={session} {...controls} />
 
       <p className="flex min-h-[44px] items-center gap-3 py-3 text-[13px]" aria-live="polite">
         <span
@@ -321,6 +324,32 @@ function sceneOf(run: Run | null): Scene {
   };
 }
 
+/** What `/api/session` serves: local.json's sessions plus each browser's display name. */
+type Sessions = { google?: NonNullable<Local["google"]> & { browserName: string } };
+
+/** The chip for Google: shown once the project wires Google or has logged in. */
+function sessionChip(sessions: Sessions, wiresGoogle: boolean): SessionChip | null {
+  const g = sessions.google;
+  if (!g) {
+    return wiresGoogle
+      ? {
+          text: "Google · not logged in",
+          title: "Run bb login google in your terminal.",
+          ok: false,
+        }
+      : null;
+  }
+  const signedIn = g.session === "signed-in";
+  const at = new Date(g.checkedAt).toLocaleString();
+  return {
+    text: `Google · ${g.browserName} · ${signedIn ? "signed in" : "signed out"}`,
+    title: signedIn
+      ? `busbar's ${g.browserName} profile loaded the Cloud console at ${at}. Run bb status to re-check.`
+      : `Google sent busbar's ${g.browserName} profile to sign-in at ${at}. Run bb login google.`,
+    ok: signedIn,
+  };
+}
+
 /**
  * The default view under `bb ui`: mirrors .busbar/ through the daemon. Loads the snapshot,
  * then reduces each streamed event. A gap, a new run, or a reconnect reloads the snapshot,
@@ -329,6 +358,7 @@ function sceneOf(run: Run | null): Scene {
 function LiveBoard() {
   const [run, setRun] = useState<Run | null | undefined>(undefined);
   const [offline, setOffline] = useState(false);
+  const [sessions, setSessions] = useState<Sessions>({});
   const current = useRef<Run | null>(null);
 
   useEffect(() => {
@@ -347,12 +377,22 @@ function LiveBoard() {
         setOffline(true);
       }
     };
+    const loadSessions = async () => {
+      try {
+        const res = await fetch("/api/session", { cache: "no-store" });
+        if (!stopped && res.ok) setSessions((await res.json()) as Sessions);
+      } catch {}
+    };
     load();
+    loadSessions();
     const events = new EventSource("/api/events");
     events.onopen = () => {
       setOffline(false);
       load(); // resync after a reconnect
+      loadSessions();
     };
+    // bb login / status / logout in another terminal.
+    events.addEventListener("session", (m) => setSessions(JSON.parse(m.data) as Sessions));
     events.onerror = () => setOffline(true);
     events.onmessage = (m) => {
       const e = JSON.parse(m.data) as RunEvent;
@@ -392,6 +432,7 @@ function LiveBoard() {
       }}
       emptyPlan={`Run ${PLAN_COMMAND} to see every write before anything changes.`}
       controls={NO_CONTROLS}
+      session={sessionChip(sessions, run?.destinations.some((d) => d.id === "google") ?? false)}
     />
   );
 }

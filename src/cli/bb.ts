@@ -1,13 +1,13 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { parseConfig } from "../core/config";
+import { loadConfig } from "../core/config";
 import { plan, resolveValues } from "../core/plan";
 import { describe, startRun } from "../core/run";
 import { serve } from "./daemon";
 import { printPlan } from "./print";
+import { cmdLogin, cmdLogout, cmdStatus } from "./session";
 
 declare const __BB_VERSION__: string;
 
@@ -18,10 +18,7 @@ function fail(message: string): never {
 
 function cmdPlan(argv: string[]) {
   const { values: flags } = parseArgs({ args: argv, options: { tunnel: { type: "string" } } });
-  const file = join(process.cwd(), "busbar.toml");
-  if (!existsSync(file))
-    fail("no busbar.toml here. Run bb in your project's root, next to busbar.toml.");
-  const config = parseConfig(readFileSync(file, "utf8"));
+  const config = loadConfig(process.cwd());
   const values: Record<string, string> = {};
   if (flags.tunnel !== undefined) values["tunnel.url"] = flags.tunnel;
   const steps = plan(config, values);
@@ -63,8 +60,19 @@ try {
     case "ui":
       await cmdUi(rest);
       break;
+    case "login":
+      await cmdLogin(rest);
+      break;
+    case "status":
+      await cmdStatus();
+      break;
+    case "logout":
+      cmdLogout(rest);
+      break;
     default:
-      fail(`unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>`);
+      fail(
+        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb login google, bb status`,
+      );
   }
 } catch (e) {
   fail((e as Error).message);

@@ -24,6 +24,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
+    "puppeteer-core": "25.18.1",
     "smol-toml": "^1.9.1"
   },
   "devDependencies": {

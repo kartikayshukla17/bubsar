@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parse, TomlError } from "smol-toml";
 
 export type ValueDecl = { kind: "url"; source: "arg" };
@@ -22,6 +24,14 @@ export class ConfigError extends Error {
     super(`busbar.toml${line ? `:${line}` : ""}: ${key ? `${key}: ` : ""}${reason}`);
     this.name = "ConfigError";
   }
+}
+
+/** Read and validate `busbar.toml` in `dir`. Throws a one-line error when it's missing. */
+export function loadConfig(dir: string): Config {
+  const file = join(dir, "busbar.toml");
+  if (!existsSync(file))
+    throw new Error("no busbar.toml here. Run bb in your project's root, next to busbar.toml.");
+  return parseConfig(readFileSync(file, "utf8"));
 }
 
 /** Parse and validate busbar.toml. Throws a ConfigError with a one-line message. */

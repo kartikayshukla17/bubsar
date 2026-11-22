@@ -9,7 +9,9 @@ import {
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { extname, join, resolve, sep } from "node:path";
+import { KNOWN } from "../core/browser/browsers";
 import { RUN_DIR } from "../core/run";
+import { type Local, readLocal } from "../core/session";
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -23,9 +25,10 @@ const TYPES: Record<string, string> = {
 };
 
 /**
- * `bb ui`: a loopback-only server for the built SPA, the run snapshot (`GET /api/run`) and
- * the run's events as they're appended (`GET /api/events`, SSE). Read-only: it never writes
- * run state and never talks to a provider.
+ * `bb ui`: a loopback-only server for the built SPA, the run snapshot (`GET /api/run`), the
+ * run's events as they're appended (`GET /api/events`, SSE) and the provider sessions from
+ * `local.json` (`GET /api/session`). Read-only: it never writes run state and never talks to
+ * a provider.
  */
 export function serve(
   projectDir: string,
@@ -33,6 +36,7 @@ export function serve(
 ): Promise<{ url: URL; close: () => void }> {
   const runFile = join(projectDir, RUN_DIR, "run.json");
   const eventsFile = join(projectDir, RUN_DIR, "events.jsonl");
+  const localFile = join(projectDir, RUN_DIR, "local.json");
   const clients = new Set<ServerResponse>();
 
   // Tail events.jsonl. A new run replaces the file, so a new inode or a shorter file
@@ -74,6 +78,13 @@ export function serve(
   };
   watchFile(eventsFile, { interval: 100 }, onChange);
 
+  // login/status/logout rewrite local.json; the board's session chip follows.
+  const onSession = () => {
+    const data = JSON.stringify(session(projectDir));
+    for (const c of clients) c.write(`event: session\ndata: ${data}\n\n`);
+  };
+  watchFile(localFile, { interval: 100 }, onSession);
+
   const server = createServer((req, res) => {
     const { port } = server.address() as AddressInfo;
     // Loopback bind stops other machines; the Host check stops a web page from reaching
@@ -95,6 +106,12 @@ export function serve(
       }
       res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
       res.end(readFileSync(runFile));
+      return;
+    }
+
+    if (path === "/api/session") {
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify(session(projectDir)));
       return;
     }
 
@@ -137,10 +154,24 @@ export function serve(
         url: new URL(`http://127.0.0.1:${port}/`),
         close: () => {
           unwatchFile(eventsFile, onChange);
+          unwatchFile(localFile, onSession);
           for (const c of clients) c.end();
           server.close();
         },
       });
     });
   });
+}
+
+/** `local.json`'s sessions, plus each browser's display name for the board's chip. */
+function session(projectDir: string) {
+  let google: Local["google"];
+  try {
+    google = readLocal(projectDir).google;
+  } catch {
+    return {}; // unreadable local.json: show no session rather than take the board down
+  }
+  if (!google) return {};
+  const browserName = KNOWN.find((k) => k.id === google.browser)?.name ?? google.browser;
+  return { google: { ...google, browserName } };
 }

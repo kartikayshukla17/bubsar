@@ -52,9 +52,18 @@ export function describe(config: Config, resolved: Record<string, string>) {
 }
 
 /** Write a file so a reader never sees it half-written. */
-function writeAtomic(path: string, text: string) {
+export function writeAtomic(path: string, text: string) {
   writeFileSync(`${path}.tmp`, text);
   renameSync(`${path}.tmp`, path);
+}
+
+/** The project's `.busbar/`, created on first use. Returns its path. */
+export function ensureRunDir(projectDir: string) {
+  const dir = join(projectDir, RUN_DIR);
+  mkdirSync(dir, { recursive: true });
+  // Keeps run state out of git without the user editing their .gitignore.
+  writeFileSync(join(dir, ".gitignore"), "*\n");
+  return dir;
 }
 
 /**
@@ -66,10 +75,7 @@ export function startRun(
   base: Omit<Run, "run" | "seq" | "board">,
   first: Action,
 ): Run {
-  const dir = join(projectDir, RUN_DIR);
-  mkdirSync(dir, { recursive: true });
-  // Keeps run state out of git without the user editing their .gitignore.
-  writeFileSync(join(dir, ".gitignore"), "*\n");
+  const dir = ensureRunDir(projectDir);
   const run: Run = { ...base, run: randomUUID(), seq: 1, board: reduce(initialBoard(), first) };
   writeAtomic(join(dir, "run.json"), `${JSON.stringify(run, null, 2)}\n`);
   const event: RunEvent = { run: run.run, seq: 1, action: first };
