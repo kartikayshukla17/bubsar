@@ -8,9 +8,10 @@ import {
   clientUrl,
   PageGoogleConsole,
   ReauthRequired,
+  SaveRejected,
   SelectorMissing,
 } from "../src/core/recipes/google/console";
-import { SELECTORS } from "../src/core/recipes/google/selectors";
+import { AFTER_SAVE, SELECTORS, type SelectorName } from "../src/core/recipes/google/selectors";
 import { testBrowser as browser } from "./helpers/browser";
 import { STAND_IN, type StandIn, standInConsole } from "./helpers/google-console";
 
@@ -44,14 +45,19 @@ describe.skipIf(!browser)(
       };
       standIn.set.reauth = null;
       standIn.set.rewrite = [];
+      standIn.set.saveError = null;
+      standIn.set.storeAs = null;
       standIn.requests.length = 0;
+      standIn.saves.length = 0;
     });
 
+    // The two that only show after Save (AFTER_SAVE) are proven by the write tests below.
     it("selector contract: every recorded selector matches the client page", async () => {
       await page.goto(standIn.clientUrl);
       const missing = [];
       for (const [name, css] of Object.entries(SELECTORS))
-        if (!(await page.exists(css, 2000))) missing.push(name);
+        if (!AFTER_SAVE.includes(name as SelectorName) && !(await page.exists(css, 2000)))
+          missing.push(name);
       expect(missing).toEqual([]);
     });
 
@@ -133,6 +139,106 @@ describe.skipIf(!browser)(
         expect((err as Error).message).toBe("session expired; run `bb login google`");
       },
     );
+
+    describe("write", () => {
+      const CB = "/api/auth/callback/google";
+      const LOCAL = "http://localhost:3000";
+      const OLD = "https://old.ngrok-free.app";
+      const NEW = "https://new.ngrok-free.app";
+      const PAGE = `/auth/clients/${STAND_IN.clientId}?project=${STAND_IN.projectId}`;
+      const SAVE = `/auth/clients/${STAND_IN.clientId}/save?project=${STAND_IN.projectId}`;
+      const before = { redirectUris: [`${LOCAL}${CB}`, `${OLD}${CB}`], jsOrigins: [OLD] };
+      const next = { redirectUris: [`${LOCAL}${CB}`, `${NEW}${CB}`], jsOrigins: [NEW] };
+
+      it("adds the new entries, deletes the dropped ones, saves once, and reads back after a reload", async () => {
+        standIn.lists = structuredClone(before);
+        const r = recipe();
+        expect(await r.read()).toEqual(before);
+        expect(await r.write(next)).toEqual({ saved: next });
+        expect(standIn.saves).toEqual([next]);
+        expect(standIn.requests).toEqual([PAGE, SAVE, PAGE]);
+      });
+
+      it("reports what Google stored, not what busbar typed", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.storeAs = { redirectUris: [`${LOCAL}${CB}`], jsOrigins: [NEW] };
+        const r = recipe();
+        await r.read();
+        expect(await r.write(next)).toEqual({ saved: standIn.set.storeAs });
+      });
+
+      it("a reload between read and write aborts before any edit: no Save", async () => {
+        standIn.lists = structuredClone(before);
+        const r = recipe();
+        await r.read();
+        await page.goto(standIn.clientUrl); // the page reloads behind the recipe's back
+        await expect(r.write(next)).rejects.toThrow(
+          "The client page reloaded after busbar read it, so busbar didn't press Save. Nothing was changed.",
+        );
+        expect(standIn.saves).toEqual([]);
+        expect(standIn.requests).toEqual([PAGE, PAGE]);
+      });
+
+      it("edits that didn't take on the page: no Save", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.rewrite = [["onclick: () => remove(li)", "onclick: () => {}"]]; // delete does nothing
+        const r = recipe();
+        await r.read();
+        await expect(r.write(next)).rejects.toThrow(
+          "busbar's edits didn't show on the client page as planned, so it didn't press Save. Nothing was changed.",
+        );
+        expect(standIn.saves).toEqual([]);
+      });
+
+      it("a Save with no confirmation fails without claiming anything was saved", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.rewrite = [['id="toast" role="status"', 'id="toast"']]; // the toast never shows
+        const r = recipe();
+        await r.read();
+        await expect(r.write(next)).rejects.toThrow(
+          "busbar pressed Save, but Google showed neither a confirmation nor an error. busbar can't tell what was saved: run `bb plan` to read the client again.",
+        );
+      });
+
+      it("a read-back that can't be read after a confirmed Save never says nothing changed", async () => {
+        standIn.lists = structuredClone(before);
+        const r = recipe();
+        await r.read();
+        standIn.set.rewrite = [['list("Authorized redirect URIs"', 'list("Redirect URIs"']]; // only the reload drifts
+        await expect(r.write(next)).rejects.toThrow(
+          "Google confirmed the Save, but busbar couldn't read the client back (Google console layout changed: `redirectUris` not found). Run `bb plan` to see what it holds.",
+        );
+        expect(standIn.saves).toEqual([next]);
+      });
+
+      it("a Save Google refuses is SaveRejected, in Google's own words", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.saveError =
+          "Invalid Redirect: must end with a public top-level domain (such as .com or .org).";
+        const r = recipe();
+        await r.read();
+        const err = await r.write(next).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(SaveRejected);
+        expect((err as SaveRejected).googleText).toBe(standIn.set.saveError);
+        expect((err as Error).message).toBe(
+          "Google didn't save the client: Invalid Redirect: must end with a public top-level domain (such as .com or .org).",
+        );
+        expect(standIn.lists).toEqual(before);
+      });
+    });
+
+    it("Page.fill replaces an entry so the page's framework sees the new text, not the old", async () => {
+      standIn.lists = { redirectUris: ["http://localhost:3000/cb"], jsOrigins: [] };
+      standIn.saves.length = 0;
+      await page.goto(standIn.clientUrl);
+      expect(await page.exists(SELECTORS.redirectUriInputs, 2000)).toBe(true);
+      await page.fill(SELECTORS.redirectUriInputs, 0, "http://localhost:4000/cb");
+      await page.click('form[aria-label="OAuth client"] button[type="submit"]');
+      expect(await page.exists("#toast:not(:empty)", 5000)).toBe(true);
+      expect(standIn.saves).toEqual([
+        { redirectUris: ["http://localhost:4000/cb"], jsOrigins: [] },
+      ]);
+    });
 
     it("takes a PNG of the page for --debug", async () => {
       const r = recipe();

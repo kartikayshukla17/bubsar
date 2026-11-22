@@ -6,7 +6,7 @@ import { MARK_LABEL, Mark } from "~/components/mark";
 import { MarkLegend, SectorMap } from "~/components/sector-map";
 import { Strip } from "~/components/strip";
 import { ShaderBackground } from "~/components/ui/fluted-glass";
-import type { Mark as MarkKind, Step, StripState } from "~/lib/board";
+import { type Mark as MarkKind, reduce, type Step, type StripState } from "~/lib/board";
 import { DEMO_SCENE, demoBoard, NEW_TUNNEL, OLD_TUNNEL, STEPS } from "~/lib/demo";
 import type { Route } from "./+types/kit";
 
@@ -20,6 +20,7 @@ const ALL_MARKS: MarkKind[] = [
   "active",
   "handoff",
   "applied",
+  "failed",
   "checking",
   "verified",
   "unexercised",
@@ -70,6 +71,15 @@ const st = (mark: MarkKind, note?: string): StripState => ({
   fresh: false,
   note,
 });
+
+const SAVE_REJECTED =
+  "Google didn't save the client: Invalid Redirect: must end with a public top-level domain (such as .com or .org).";
+const failedBoard = [
+  { type: "plan" } as const,
+  { type: "start" } as const,
+  { type: "activate", id: "google" } as const,
+  { type: "fail", id: "google", note: SAVE_REJECTED } as const,
+].reduce(reduce, demoBoard);
 
 export default function Kit() {
   return (
@@ -215,6 +225,41 @@ export default function Kit() {
               state={planned}
             />
           ))}
+        </div>
+      </Row>
+
+      <Row
+        title="Failed"
+        note="bb apply stopped: the strip stays where it stopped and says why, in the provider's own words when it gave any. Never green, never Applied."
+      >
+        <div className="grid gap-4">
+          <div className="bb-kit-rack grid gap-[6px]">
+            <Strip
+              step={READ_STEPS[0]}
+              index={1}
+              total={READ_STEPS.length}
+              state={{ bay: "active", mark: "failed", fresh: false, note: SAVE_REJECTED }}
+            />
+            <Strip
+              step={READ_STEPS[1]}
+              index={2}
+              total={READ_STEPS.length}
+              state={{
+                bay: "active",
+                mark: "failed",
+                fresh: false,
+                note: "Saved, but Google shows a different list: Authorized redirect URIs are http://localhost:3000/api/auth/callback/google (planned: http://localhost:3000/api/auth/callback/google, https://7f3a-49-36-112-4.ngrok-free.app/auth/callback).",
+              }}
+            />
+          </div>
+          <div className="max-w-[640px]">
+            <SectorMap
+              scene={DEMO_SCENE}
+              board={{ ...failedBoard, focus: "tunnel.url" }}
+              onFocus={() => {}}
+              glass={false}
+            />
+          </div>
         </div>
       </Row>
 

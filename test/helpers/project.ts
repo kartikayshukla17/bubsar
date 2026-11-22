@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -47,4 +47,26 @@ export function project(toml = SAMPLE_TOML, world: object = EMPTY_WORLD) {
     /** Change the fake world between commands. */
     setWorld: (next: object) => writeFileSync(worldFile, JSON.stringify(next)),
   };
+}
+
+/**
+ * A project that ran `bb login google` with Brave, whose OAuth client shows `client`, and
+ * whose .busbar/state.json says busbar owns `owned`. `google` adds to the fake world's
+ * google section (scripted failures).
+ */
+export function signedIn(
+  client: object,
+  owned: object = { redirectUris: [], jsOrigins: [] },
+  google: object = {},
+) {
+  const p = project(undefined, { browsers: ["brave"], google: { session: "signed-out" } });
+  const login = p.bb("login", "google");
+  if (login.code !== 0) throw new Error(`bb login google failed: ${login.stderr}`);
+  p.setWorld({ ...p.world(), google: { ...p.world().google, client, ...google } });
+  mkdirSync(join(p.dir, ".busbar"), { recursive: true });
+  writeFileSync(
+    join(p.dir, ".busbar", "state.json"),
+    JSON.stringify({ google: { owned, planned: null, checks: [] } }),
+  );
+  return p;
 }

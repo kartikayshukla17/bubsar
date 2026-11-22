@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   type Action,
@@ -81,4 +88,21 @@ export function startRun(
   const event: RunEvent = { run: run.run, seq: 1, action: first };
   writeAtomic(join(dir, "events.jsonl"), `${JSON.stringify(event)}\n`);
   return run;
+}
+
+export function readRun(projectDir: string): Run | null {
+  const file = join(projectDir, RUN_DIR, "run.json");
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Run) : null;
+}
+
+/** Snapshot first, then the event: a reader that sees the event can fetch a snapshot with it. */
+export function appendEvent(projectDir: string, action: Action): Run {
+  const run = readRun(projectDir);
+  if (!run) throw new Error("no run to add to: .busbar/run.json is missing");
+  const dir = ensureRunDir(projectDir);
+  const next: Run = { ...run, seq: run.seq + 1, board: reduce(run.board, action) };
+  writeAtomic(join(dir, "run.json"), `${JSON.stringify(next, null, 2)}\n`);
+  const event: RunEvent = { run: next.run, seq: next.seq, action };
+  appendFileSync(join(dir, "events.jsonl"), `${JSON.stringify(event)}\n`);
+  return next;
 }

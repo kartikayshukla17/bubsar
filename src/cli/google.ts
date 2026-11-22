@@ -2,7 +2,13 @@ import type { InstalledBrowser } from "../core/browser/browsers";
 import type { BrowserDriver } from "../core/browser/driver";
 import { type GoogleConsole, PageGoogleConsole } from "../core/recipes/google/console";
 import { FakeGoogleConsole } from "../core/recipes/google/fake";
-import { existingProfiles, readLocal, sessionCheck } from "../core/session";
+import {
+  existingProfiles,
+  readLocal,
+  type Session,
+  sessionCheck,
+  writeLocal,
+} from "../core/session";
 
 export type GoogleProfile = { browser: InstalledBrowser; dir: string };
 
@@ -37,4 +43,28 @@ export async function openGoogleConsole(
   return env.BB_FAKE
     ? new FakeGoogleConsole(env.BB_FAKE, page, url)
     : new PageGoogleConsole(page, { url });
+}
+
+export function recordSession(projectDir: string, session: Session) {
+  const local = readLocal(projectDir);
+  if (local.google)
+    writeLocal(projectDir, {
+      ...local,
+      google: { ...local.google, session, checkedAt: new Date().toISOString() },
+    });
+}
+
+/** A failed close is reported on its own line and never replaces `fn`'s result or error. */
+export async function withConsole<T>(gc: GoogleConsole, fn: () => Promise<T>): Promise<T> {
+  const close = () =>
+    gc.close().catch((e: unknown) => {
+      process.stderr.write(
+        `bb: also couldn't close busbar's automated browser: ${(e as Error).message}. Quit it before the next bb command.\n`,
+      );
+    });
+  try {
+    return await fn();
+  } finally {
+    await close();
+  }
 }

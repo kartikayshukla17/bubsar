@@ -72,7 +72,15 @@ function demoStatus(s: BoardState): Status {
         text: "4 verified, 1 listed but not exercised. Run bb verify --signin to prove Google sign-in.",
         live: false,
       };
+    case "failed":
+      return failedStatus(s);
   }
+}
+
+function failedStatus(s: BoardState): Status {
+  const failed = s.steps.find((st) => s.strips[st.id].mark === "failed");
+  const note = failed ? s.strips[failed.id].note : undefined;
+  return { text: `Stopped: ${note ?? "a step failed"}`, live: false };
 }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
@@ -103,6 +111,8 @@ function liveStatus(s: BoardState): Status {
       };
     case "verified":
       return { text: "Verify finished.", live: false };
+    case "failed":
+      return failedStatus(s);
   }
 }
 

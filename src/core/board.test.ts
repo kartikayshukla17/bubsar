@@ -27,3 +27,27 @@ describe("board reducer (the run's event protocol)", () => {
     });
   });
 });
+
+describe("fail (BB-04)", () => {
+  it("marks the strip failed where it stopped, carries the reason, and stops the run", () => {
+    let s = reduce(initialBoard(), {
+      type: "plan",
+      steps: [step("google-redirect-1"), step("google-origin-1")],
+    });
+    s = reduce(s, { type: "start" });
+    s = reduce(s, { type: "activate", id: "google-redirect-1" });
+    s = reduce(s, {
+      type: "fail",
+      id: "google-redirect-1",
+      note: "Google didn't save the client: Invalid Redirect",
+    });
+    expect(s.phase).toBe("failed");
+    expect(s.strips["google-redirect-1"]).toEqual({
+      bay: "active",
+      mark: "failed",
+      fresh: true,
+      note: "Google didn't save the client: Invalid Redirect",
+    });
+    expect(s.strips["google-origin-1"]).toEqual({ bay: "plan", mark: "planned", fresh: false });
+  });
+});

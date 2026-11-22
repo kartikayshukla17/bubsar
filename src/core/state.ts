@@ -11,11 +11,17 @@ export type Check = {
   status: number | null;
 };
 
+export type Planned = {
+  values: Record<string, string>;
+  desired: Lists;
+  read: Lists;
+  next: Lists;
+};
+
 export type GoogleState = {
   /** Entries busbar added. Only these (and `--adopt`ed ones) are ever removed. */
   owned: Lists;
-  /** The last plan that read the console: what it read, and the lists it leads to. */
-  planned: { read: Lists; next: Lists } | null;
+  planned: Planned | null;
   checks: Check[];
 };
 

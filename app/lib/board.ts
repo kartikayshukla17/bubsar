@@ -25,6 +25,7 @@ export function routeMark(s: BoardState, value: Value, dest: DestinationId): Mar
 export function valueMark(s: BoardState, value: Value): Mark {
   const marks = value.routes.map((d) => routeMark(s, value, d));
   const order: Mark[] = [
+    "failed",
     "drift",
     "handoff",
     "active",

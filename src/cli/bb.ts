@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { cmdApply } from "./apply";
 import { serve } from "./daemon";
 import { cmdPlan } from "./plan";
 import { cmdLogin, cmdLogout, cmdStatus } from "./session";
@@ -40,6 +41,9 @@ try {
     case "plan":
       await cmdPlan(rest);
       break;
+    case "apply":
+      await cmdApply(rest);
+      break;
     case "ui":
       await cmdUi(rest);
       break;
@@ -54,7 +58,7 @@ try {
       break;
     default:
       fail(
-        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb login google, bb status`,
+        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb apply, bb login google, bb status`,
       );
   }
 } catch (e) {

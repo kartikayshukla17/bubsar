@@ -5,6 +5,7 @@ import {
   isReauth,
   type Lists,
   ReauthRequired,
+  SaveRejected,
   SelectorMissing,
 } from "./console";
 import { SELECTORS, type SelectorName } from "./selectors";
@@ -15,6 +16,8 @@ import { SELECTORS, type SelectorName } from "./selectors";
  * client's lists and scripted failures come from `world.google`.
  */
 export class FakeGoogleConsole implements GoogleConsole {
+  #read = false;
+
   constructor(
     private readonly file: string,
     private readonly page: Page,
@@ -39,12 +42,22 @@ export class FakeGoogleConsole implements GoogleConsole {
         );
       throw new SelectorMissing(missing as SelectorName);
     }
-    const client = google.client ?? { redirectUris: [], jsOrigins: [] };
-    return { redirectUris: [...client.redirectUris], jsOrigins: [...client.jsOrigins] };
+    this.#read = true;
+    return copy(google.client ?? { redirectUris: [], jsOrigins: [] });
   }
 
-  async write(): Promise<{ saved: Lists }> {
-    throw new Error("fake world: writing the Google console isn't modelled yet (BB-04)");
+  async write(next: Lists): Promise<{ saved: Lists }> {
+    if (!this.#read) throw new Error("write() needs read() first, in the same page load");
+    const fail = readWorld(this.file).google.fail;
+    updateWorld(this.file, (w) => {
+      w.consoleCalls = [
+        ...(w.consoleCalls ?? []),
+        { op: "save", url: this.url, lists: copy(next) },
+      ];
+      if (!fail?.saveError) w.google.client = copy(fail?.savedAs ?? next);
+    });
+    if (fail?.saveError) throw new SaveRejected(fail.saveError);
+    return { saved: await this.read() };
   }
 
   screenshot() {
@@ -55,3 +68,8 @@ export class FakeGoogleConsole implements GoogleConsole {
     return this.page.close();
   }
 }
+
+const copy = (l: Lists): Lists => ({
+  redirectUris: [...l.redirectUris],
+  jsOrigins: [...l.jsOrigins],
+});

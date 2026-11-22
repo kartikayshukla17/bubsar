@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import type { Step } from "../core/board";
 import { driverFromEnv } from "../core/browser/driver";
 import { loadConfig } from "../core/config";
 import { diff, nextLists } from "../core/diff";
@@ -8,14 +9,13 @@ import { desiredLists, plan, resolveValues } from "../core/plan";
 import {
   clientUrl,
   type GoogleConsole,
-  type Lists,
   ReauthRequired,
   SelectorMissing,
 } from "../core/recipes/google/console";
-import { describe, ensureRunDir, RUN_DIR, startRun } from "../core/run";
-import { consoleOrigin, readLocal, type Session, writeLocal } from "../core/session";
+import { appendEvent, describe, ensureRunDir, RUN_DIR, type Run, startRun } from "../core/run";
+import { consoleOrigin } from "../core/session";
 import { googleState, readState, writeState } from "../core/state";
-import { googleProfile, openGoogleConsole } from "./google";
+import { googleProfile, openGoogleConsole, recordSession, withConsole } from "./google";
 import { printDiff, printPlan } from "./print";
 
 /**
@@ -49,6 +49,16 @@ function dropPlan(projectDir: string) {
     writeState(projectDir, { ...state, google: { ...state.google, planned: null } });
 }
 
+function failRun(
+  projectDir: string,
+  base: Omit<Run, "run" | "seq" | "board">,
+  steps: Step[],
+  reason: string,
+) {
+  startRun(projectDir, base, { type: "plan", steps });
+  for (const s of steps) appendEvent(projectDir, { type: "fail", id: s.id, note: reason });
+}
+
 /** `bb plan --tunnel <url> [--adopt] [--debug]` */
 export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
   const { values: flags } = parseArgs({
@@ -73,36 +83,31 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()) {
 
   const state = readState(cwd);
   const gstate = googleState(state);
-  const record = (session: Session) => {
-    const local = readLocal(cwd);
-    if (local.google)
-      writeLocal(cwd, {
-        ...local,
-        google: { ...local.google, session, checkedAt: new Date().toISOString() },
-      });
-  };
   const gc = await openGoogleConsole(
     driver,
     profile,
     clientUrl(consoleOrigin(), google.project_id, google.client_id),
   );
-  let read: Lists;
-  try {
-    read = await gc.read();
-  } catch (e) {
-    // A plan that failed to read leaves no plan behind: an earlier one (maybe for another
-    // tunnel) must never be what bb apply acts on.
-    if (e instanceof SelectorMissing || e instanceof ReauthRequired) dropPlan(cwd);
-    if (e instanceof ReauthRequired) record("signed-out");
-    if (flags.debug) await saveScreenshot(cwd, gc);
-    throw e;
-  } finally {
-    await gc.close();
-  }
+  const read = await withConsole(gc, async () => {
+    try {
+      return await gc.read();
+    } catch (e) {
+      // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
+      if (e instanceof SelectorMissing || e instanceof ReauthRequired) {
+        dropPlan(cwd);
+        failRun(cwd, base, plan(config, values), (e as Error).message);
+      }
+      if (e instanceof ReauthRequired) recordSession(cwd, "signed-out");
+      if (flags.debug) await saveScreenshot(cwd, gc);
+      throw e;
+    }
+  });
 
-  const d = diff(read, desiredLists(config, values), gstate.owned, { adopt: flags.adopt ?? false });
-  writeState(cwd, { ...state, google: { ...gstate, planned: { read, next: nextLists(d) } } });
-  record("signed-in");
+  const desired = desiredLists(config, values);
+  const d = diff(read, desired, gstate.owned, { adopt: flags.adopt ?? false });
+  const planned = { values: resolveValues(config, values), desired, read, next: nextLists(d) };
+  writeState(cwd, { ...state, google: { ...gstate, planned } });
+  recordSession(cwd, "signed-in");
   startRun(cwd, base, { type: "plan", steps: plan(config, values, d) });
   process.stdout.write(printDiff(config, d, profile.browser.name));
 }

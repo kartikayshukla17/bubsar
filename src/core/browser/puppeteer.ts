@@ -110,17 +110,27 @@ class PuppeteerPage implements Page {
     await (await this.nth(css, nth)).click();
   }
 
+  // Real key events for the clear too: a framework tracking the field through input events
+  // never sees a `.value` set from script, and keeps the old text.
   async fill(css: string, nth: number, value: string) {
     const el = await this.nth(css, nth);
-    await el.evaluate((e) => {
-      (e as HTMLInputElement).value = "";
-    });
+    await el.focus();
+    await el.evaluate((e) => (e as HTMLInputElement).select());
+    await this.tab.keyboard.press("Backspace");
     await el.type(value);
   }
 
   async text(css: string) {
     const el = await this.tab.$(css);
     return el ? el.evaluate((e) => (e.textContent ?? "").trim()) : null;
+  }
+
+  loadId() {
+    return this.tab.evaluate(() => {
+      const w = window as { __busbarLoad?: string };
+      w.__busbarLoad ??= `${performance.timeOrigin}-${Math.random()}`;
+      return w.__busbarLoad;
+    });
   }
 
   screenshot() {

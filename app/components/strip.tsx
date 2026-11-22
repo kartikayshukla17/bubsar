@@ -28,6 +28,7 @@ export function Strip({
 }) {
   const tier = TIER[step.tier];
   const turn = state.mark === "handoff";
+  const failed = state.mark === "failed";
   const busy = state.mark === "active" || state.mark === "checking";
 
   const removes = step.to === "";
@@ -56,6 +57,8 @@ export function Strip({
       {change}
       {step.note ? ` · ${step.note}` : null}
     </span>
+  ) : failed ? (
+    <span className="bb-strip__sub">Stopped here</span>
   ) : (
     <span className="bb-strip__sub">
       {removes ? "Removed, not yet verified" : "Written, not yet verified"}
@@ -86,8 +89,10 @@ export function Strip({
         {String(index).padStart(2, "0")}
         <span className="bb-strip__sub">/{String(total).padStart(2, "0")}</span>
       </div>
-      <div className={`bb-strip__mark ${turn ? "bb-strip__mark--turn" : ""}`}>
-        <MarkLabel kind={state.mark} tone="paper" fresh={state.fresh} />
+      <div
+        className={`bb-strip__mark ${turn ? "bb-strip__mark--turn" : ""} ${failed ? "bb-strip__mark--failed" : ""}`}
+      >
+        <MarkLabel kind={state.mark} tone={failed ? "ink" : "paper"} fresh={state.fresh} />
       </div>
     </article>
   );

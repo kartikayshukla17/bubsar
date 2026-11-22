@@ -8,6 +8,7 @@
  * Rules: prefer accessible names (`aria-label`), form-field names and roles over generated
  * class names; scope entry selectors to their section so the two lists can't mix; one line
  * on why each was chosen. Version 2 (2026-11-22, stand-in): per-section anchor + field count.
+ * Version 3 (2026-11-22, stand-in): the write path (Save, its confirmation, its error).
  */
 export const SELECTORS = {
   /** The client's edit form, by its accessible name. Anchors the page: nothing is read without it. */
@@ -34,7 +35,16 @@ export const SELECTORS = {
   /** Each origin's delete button: one per entry, a cross-check. */
   jsOriginDeletes:
     'section[aria-label="Authorized JavaScript origins"] button[aria-label^="Delete URIs "]',
+  /** The client form's submit button: the one Save. A role-level attribute, not its text. */
+  saveButton: 'form[aria-label="OAuth client"] button[type="submit"]',
+  /** Google's confirmation after a Save: a live status region that has text. Shown after Save only. */
+  savedToast: '[role="status"]:not(:empty)',
+  /** Google's refusal after a Save: an alert region with its error text. Shown after a failed Save only. */
+  saveError: '[role="alert"]:not(:empty)',
 } as const;
+
+/** Selectors that only match once Save was pressed; the selector contract checks the rest on load. */
+export const AFTER_SAVE: SelectorName[] = ["savedToast", "saveError"];
 
 export type SelectorName = keyof typeof SELECTORS;
 

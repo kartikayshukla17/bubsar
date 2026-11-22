@@ -16,6 +16,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- No favicon fetch, so the server's request log holds only what the recipe asked for. -->
+    <link rel="icon" href="data:," />
     <title>Client ID for Web application · Google Auth Platform (busbar stand-in)</title>
   </head>
   <body>
@@ -36,22 +38,48 @@
         return el;
       };
 
+      // Framework-like: the model changes only through input events and Save sends the model,
+      // so a value set from script without events leaves it stale.
+      const models = {};
+
       function list(label, values) {
+        const model = [];
+        models[label] = model;
         const items = h("div", { role: "list" });
+        const rows = () => [...items.children];
         const renumber = () =>
-          [...items.children].forEach((li, i) => {
+          rows().forEach((li, i) => {
             li.querySelector("input").setAttribute("aria-label", `URIs ${i + 1}`);
             li.querySelector("button").setAttribute("aria-label", `Delete URIs ${i + 1}`);
           });
         const remove = (li) => {
+          model.splice(rows().indexOf(li), 1);
           li.remove();
           renumber();
         };
+        const edit = (input) => {
+          let range = [0, 0];
+          input.addEventListener("beforeinput", () => {
+            range = [input.selectionStart, input.selectionEnd];
+          });
+          input.addEventListener("input", (e) => {
+            const i = rows().indexOf(input.parentElement);
+            const [start, end] = range;
+            const was = model[i];
+            if (e.inputType === "insertText")
+              model[i] = was.slice(0, start) + e.data + was.slice(end);
+            else if (e.inputType === "deleteContentBackward")
+              model[i] = start === end ? was.slice(0, start - 1) + was.slice(end) : was.slice(0, start) + was.slice(end);
+            else model[i] = input.value;
+          });
+          return input;
+        };
         const add = (value) => {
+          model.push(value);
           const li = h(
             "div",
             { role: "listitem" },
-            h("input", { type: "text", value }),
+            edit(h("input", { type: "text", value })),
             h("button", { type: "button", onclick: () => remove(li) }, "🗑"),
           );
           items.append(li);
@@ -72,16 +100,13 @@
         );
       }
 
-      const values = (label) =>
-        [...document.querySelectorAll(`section[aria-label="${label}"] input`)].map((i) => i.value);
-
       async function save(event) {
         event.preventDefault();
         document.getElementById("toast").textContent = "";
         document.getElementById("error").textContent = "";
         const body = {
-          redirectUris: values("Authorized redirect URIs"),
-          jsOrigins: values("Authorized JavaScript origins"),
+          redirectUris: models["Authorized redirect URIs"],
+          jsOrigins: models["Authorized JavaScript origins"],
         };
         const res = await fetch(`${location.pathname}/save${location.search}`, {
           method: "POST",

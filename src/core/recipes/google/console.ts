@@ -40,6 +40,12 @@ export class SaveRejected extends Error {
   }
 }
 
+export const sameList = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((u, i) => u === b[i]);
+
+export const sameLists = (a: Lists, b: Lists) =>
+  sameList(a.redirectUris, b.redirectUris) && sameList(a.jsOrigins, b.jsOrigins);
+
 export const ACCOUNTS_ORIGIN = "https://accounts.google.com";
 
 /** The OAuth client's page: `${origin}/auth/clients/<client_id>?project=<project_id>`. */
@@ -63,6 +69,7 @@ export function isReauth(url: string, accountsOrigin = ACCOUNTS_ORIGIN) {
 export class PageGoogleConsole implements GoogleConsole {
   readonly #timeoutMs: number;
   readonly #accounts: string;
+  #readIn: string | null = null;
 
   constructor(
     private readonly page: Page,
@@ -82,14 +89,57 @@ export class PageGoogleConsole implements GoogleConsole {
     await this.page.goto(this.o.url);
     await this.notSignIn();
     await this.need("clientForm");
-    return {
+    const lists = {
       redirectUris: await this.list(LISTS.redirectUris),
       jsOrigins: await this.list(LISTS.jsOrigins),
     };
+    this.#readIn = await this.page.loadId();
+    return lists;
   }
 
-  async write(): Promise<{ saved: Lists }> {
-    throw new Error("writing the Google console isn't built yet (BB-04)");
+  /** `next` must be the read lists minus drops, plus adds appended: the page can't reorder. */
+  async write(next: Lists): Promise<{ saved: Lists }> {
+    await this.sameLoad();
+    for (const key of ["redirectUris", "jsOrigins"] as const) {
+      const l = LISTS[key];
+      const now = await this.page.values(SELECTORS[l.inputs]);
+      const drop = now.flatMap((url, i) => (next[key].includes(url) ? [] : [i]));
+      // Last first, so the indexes still to delete don't shift.
+      for (const i of drop.reverse()) await this.page.click(SELECTORS[l.deletes], i);
+      const kept = now.length - drop.length;
+      for (const [j, url] of next[key].filter((u) => !now.includes(u)).entries()) {
+        await this.page.click(SELECTORS[l.add]);
+        await this.page.fill(SELECTORS[l.inputs], kept + j, url);
+      }
+    }
+    await this.sameLoad();
+    const shown = {
+      redirectUris: await this.list(LISTS.redirectUris),
+      jsOrigins: await this.list(LISTS.jsOrigins),
+    };
+    if (!sameLists(shown, next))
+      throw new Error(
+        "busbar's edits didn't show on the client page as planned, so it didn't press Save. Nothing was changed.",
+      );
+    await this.page.click(SELECTORS.saveButton);
+    const answered = await this.page.exists(
+      `${SELECTORS.savedToast}, ${SELECTORS.saveError}`,
+      this.#timeoutMs,
+    );
+    const refused = await this.page.text(SELECTORS.saveError);
+    if (refused) throw new SaveRejected(refused);
+    if (!answered)
+      throw new Error(
+        "busbar pressed Save, but Google showed neither a confirmation nor an error. busbar can't tell what was saved: run `bb plan` to read the client again.",
+      );
+    try {
+      return { saved: await this.read() };
+    } catch (e) {
+      if (!(e instanceof SelectorMissing)) throw e;
+      throw new Error(
+        `Google confirmed the Save, but busbar couldn't read the client back (Google console layout changed: \`${e.selector}\` not found). Run \`bb plan\` to see what it holds.`,
+      );
+    }
   }
 
   screenshot() {
@@ -98,6 +148,15 @@ export class PageGoogleConsole implements GoogleConsole {
 
   close() {
     return this.page.close();
+  }
+
+  private async sameLoad() {
+    if (this.#readIn === null) throw new Error("write() needs read() first, in the same page load");
+    await this.notSignIn();
+    if ((await this.page.loadId()) !== this.#readIn)
+      throw new Error(
+        "The client page reloaded after busbar read it, so busbar didn't press Save. Nothing was changed.",
+      );
   }
 
   private async notSignIn() {

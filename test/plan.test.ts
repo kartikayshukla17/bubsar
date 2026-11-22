@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { project } from "./helpers/project";
+import { project, signedIn } from "./helpers/project";
 
 // `bb plan` against the fake world (BB_FAKE): the Google client's lists, the session and
 // scripted failures live in the world file, so no browser and no Google are involved.
@@ -11,22 +11,6 @@ const OLD = "https://old.ngrok-free.app";
 const LOCAL = "http://localhost:3000";
 const CB = "/api/auth/callback/google";
 const none = { redirectUris: [], jsOrigins: [] };
-
-/**
- * A project that ran `bb login google` with Brave, whose OAuth client shows `client`, and
- * whose .busbar/state.json says busbar owns `owned`.
- */
-function signedIn(client: object, owned: object = none, google: object = {}) {
-  const p = project(undefined, { browsers: ["brave"], google: { session: "signed-out" } });
-  expect(p.bb("login", "google").code).toBe(0);
-  p.setWorld({ ...p.world(), google: { ...p.world().google, client, ...google } });
-  mkdirSync(join(p.dir, ".busbar"), { recursive: true });
-  writeFileSync(
-    join(p.dir, ".busbar", "state.json"),
-    JSON.stringify({ google: { owned, planned: null, checks: [] } }),
-  );
-  return p;
-}
 
 describe("bb plan before bb login google", () => {
   it("plans the declared entries as unknown, says how to read them, and starts no browser", () => {
@@ -96,6 +80,8 @@ describe("bb plan, signed in", () => {
       google: {
         owned,
         planned: {
+          values: { "tunnel.url": NEW },
+          desired: { redirectUris: [`${NEW}${CB}`], jsOrigins: [NEW] },
           read: client,
           next: { redirectUris: [`${LOCAL}${CB}`, `${NEW}${CB}`], jsOrigins: [NEW] },
         },
@@ -208,15 +194,19 @@ describe("bb plan fails closed", () => {
     return p;
   }
 
-  /** Every .busbar/ file unchanged, except state.json, whose only change is planned → null. */
+  /**
+   * Every .busbar/ file unchanged except: state.json, whose only change is planned → null;
+   * and the run, now this plan's, with its unread strips failed for `reason`.
+   */
   function expectOnlyPlanDropped(
     dir: string,
     before: Record<string, string>,
+    reason: string,
     except: string[] = [],
   ) {
     const after = snapshot(dir);
-    const { "state.json": was, ...rest } = before;
-    const { "state.json": now, ...restAfter } = after;
+    const { "state.json": was, "run.json": _r, "events.jsonl": _e, ...rest } = before;
+    const { "state.json": now, "run.json": run, "events.jsonl": events, ...restAfter } = after;
     for (const f of except) {
       delete rest[f];
       delete restAfter[f];
@@ -224,9 +214,27 @@ describe("bb plan fails closed", () => {
     expect(restAfter).toEqual(rest);
     const old = JSON.parse(was);
     expect(JSON.parse(now)).toEqual({ ...old, google: { ...old.google, planned: null } });
+
+    const actions = events
+      .trimEnd()
+      .split("\n")
+      .map((l) => JSON.parse(l).action);
+    expect(actions.map((a: { type: string; id?: string }) => [a.type, a.id])).toEqual([
+      ["plan", undefined],
+      ["fail", "google-redirect-1"],
+      ["fail", "google-origin-1"],
+    ]);
+    const { board } = JSON.parse(run);
+    expect(board.phase).toBe("failed");
+    expect(board.steps.map((st: { from: null; to: string }) => [st.from, st.to])).toEqual([
+      [null, `${NEW}${CB}`],
+      [null, NEW],
+    ]);
+    for (const strip of Object.values(board.strips))
+      expect(strip).toEqual({ bay: "plan", mark: "failed", fresh: true, note: reason });
   }
 
-  it("when a recorded selector isn't found: names it, exits 1, drops the stale plan, writes nothing else", () => {
+  it("when a recorded selector isn't found: names it, exits 1, drops the stale plan, fails the strips", () => {
     const p = planned({ fail: { missingSelector: "redirectUris" } });
     const before = snapshot(p.dir);
     const r = p.bb("plan", "--tunnel", NEW);
@@ -235,7 +243,11 @@ describe("bb plan fails closed", () => {
       "bb: Google console layout changed: `redirectUris` not found. Nothing was changed.\n",
     );
     expect(r.code).toBe(1);
-    expectOnlyPlanDropped(p.dir, before);
+    expectOnlyPlanDropped(
+      p.dir,
+      before,
+      "Google console layout changed: `redirectUris` not found. Nothing was changed.",
+    );
     expect(p.world().google.client).toEqual(client);
   });
 
@@ -249,10 +261,22 @@ describe("bb plan fails closed", () => {
     expect(r.stdout).toBe("");
     expect(r.stderr).toBe("bb: session expired; run `bb login google`\n");
     expect(r.code).toBe(1);
-    // The board's session chip tells the truth about the profile: local.json is the one
-    // other file a bounce to sign-in rewrites.
-    expectOnlyPlanDropped(p.dir, before, ["local.json"]);
+    expectOnlyPlanDropped(p.dir, before, "session expired; run `bb login google`", ["local.json"]);
     expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
+  });
+
+  it("when closing the browser also fails: reports the read's error, and the close on its own line", () => {
+    const p = planned({ fail: { missingSelector: "redirectUris" } });
+    p.setWorld({ ...p.world(), closeFails: "Target closed" });
+    const r = p.bb("plan", "--tunnel", NEW);
+    expect(r.stderr).toBe(
+      [
+        "bb: also couldn't close busbar's automated browser: Target closed. Quit it before the next bb command.",
+        "bb: Google console layout changed: `redirectUris` not found. Nothing was changed.",
+        "",
+      ].join("\n"),
+    );
+    expect(r.code).toBe(1);
   });
 
   it("with --debug, saves a screenshot only you can read, and warns what it may show", () => {

@@ -10,6 +10,7 @@ export type Mark =
   | "active"
   | "handoff"
   | "applied"
+  | "failed"
   | "checking"
   | "verified"
   | "unexercised"
@@ -22,7 +23,8 @@ export type Phase =
   | "handoff"
   | "applied"
   | "verifying"
-  | "verified";
+  | "verified"
+  | "failed";
 
 /** Declared in busbar.toml, so plain strings. The demo fixture narrows them. */
 export type DestinationId = string;
@@ -100,6 +102,7 @@ export type Action =
   | { type: "settle"; id: string }
   | { type: "handoff-done"; id: string }
   | { type: "apply-done" }
+  | { type: "fail"; id: string; note: string }
   | { type: "verify-start" }
   | { type: "check"; id: string }
   | { type: "checked"; id: string }
@@ -153,6 +156,9 @@ export function reduce(s: BoardState, a: Action): BoardState {
       };
     case "apply-done":
       return { ...s, phase: "applied" };
+    // The strip stays in the bay it stopped in: the board shows how far the run got.
+    case "fail":
+      return { ...patch(s, a.id, { mark: "failed", fresh: true, note: a.note }), phase: "failed" };
     case "verify-start":
       return { ...s, phase: "verifying" };
     case "check":

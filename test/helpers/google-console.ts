@@ -34,6 +34,8 @@ export type StandIn = {
     reauth: "redirect" | "script" | null;
     /** Save answers 400 with this text, as Google shows a validation error. */
     saveError: string | null;
+    /** Save succeeds, but the client then holds these lists instead of what was sent. */
+    storeAs: Lists | null;
     /** Text replacements over the served page: drift the DOM without editing the fixture. */
     rewrite: [string, string][];
   };
@@ -69,7 +71,7 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
   });
   const s = {
     lists: { redirectUris: [], jsOrigins: [], ...init },
-    set: { renderDelayMs: 150, reauth: null, saveError: null, rewrite: [] },
+    set: { renderDelayMs: 150, reauth: null, saveError: null, storeAs: null, rewrite: [] },
     requests: [],
     saves: [],
   } as Pick<StandIn, "lists" | "set" | "requests" | "saves">;
@@ -84,7 +86,7 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
     if (req.method === "POST" && url === `${path}/save${query}`) {
       const next = JSON.parse(await body(req)) as Lists;
       if (s.set.saveError) return json(400, { error: s.set.saveError });
-      s.lists = next;
+      s.lists = s.set.storeAs ?? next;
       s.saves.push(next);
       return json(200, { saved: next });
     }

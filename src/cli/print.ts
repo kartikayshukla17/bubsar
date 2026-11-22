@@ -1,6 +1,8 @@
+import { changes, LIST_TITLE } from "../core/apply";
 import type { Step } from "../core/board";
 import type { Config } from "../core/config";
 import type { Change, Diff, Entry } from "../core/diff";
+import type { Lists } from "../core/recipes/google/console";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -76,4 +78,29 @@ export function printDiff(config: Config, d: Diff, browserName: string): string 
     );
   lines.push("");
   return lines.join("\n");
+}
+
+export function printApply(config: Config, read: Lists, next: Lists, browserName: string): string {
+  const google = config.destinations.google;
+  const c = changes(read, next);
+  const lines = [`busbar apply · ${config.project.name}`, ""];
+  if (google) lines.push(`Google · OAuth web client ${google.client_id} in ${google.project_id}`);
+  lines.push(`Read again just now in busbar's ${browserName} profile: unchanged since bb plan.`);
+  for (const k of ["redirectUris", "jsOrigins"] as const) {
+    lines.push("", LIST_TITLE[k]);
+    if (!c[k].add.length && !c[k].remove.length) lines.push("  no changes");
+    for (const url of c[k].add) lines.push(`  add     ${url}`);
+    for (const url of c[k].remove) lines.push(`  remove  ${url}`);
+  }
+  lines.push("", "");
+  return lines.join("\n");
+}
+
+export function printApplied(read: Lists, next: Lists): string {
+  const c = changes(read, next);
+  return [
+    "Saved. Google's lists read back exactly as planned.",
+    `${plural(c.adds + c.removes, "change")} applied: ${c.adds} added, ${c.removes} removed. Not verified: nothing has checked that Google accepts the new redirect URI yet.`,
+    "",
+  ].join("\n");
 }
