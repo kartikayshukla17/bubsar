@@ -1,0 +1,14 @@
+# PROVISIONAL: hand-written from Google's documented behaviour for
+# https://accounts.google.com/o/oauth2/v2/auth, not recorded. No request was sent to Google to
+# make it. Replace it with a scrubbed recording from the sandbox client (BB-05 ticket,
+# "Real-world checks pending"). Client ID and redirect URI are fake.
+# Expect: rejected
+HTTP/1.1 400 Bad Request
+Content-Type: text/html; charset=utf-8
+
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Error 400 (OAuth2 Error)</title></head>
+<body><div id="af-error-container"><h1>Access blocked: This app's request is invalid</h1>
+<p>You can't sign in because this app sent an invalid request. You can try again later, or contact the developer about this issue.</p>
+<p><b>Error 400: redirect_uri_mismatch</b></p>
+<p>Request details: redirect_uri=https://fixture.ngrok-free.app/api/auth/callback/google flowName=GeneralOAuthFlow</p>
+</div></body></html>

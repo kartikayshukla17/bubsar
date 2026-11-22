@@ -1,0 +1,9 @@
+# PROVISIONAL: hand-written from Google's documented behaviour for
+# https://accounts.google.com/o/oauth2/v2/auth, not recorded. No request was sent to Google to
+# make it. Replace it with a scrubbed recording from the sandbox client (BB-05 ticket,
+# "Real-world checks pending"). Client ID and redirect URI are fake.
+# Expect: unknown
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+<!doctype html><html><head><title>Sign in - Google Accounts</title></head><body><div id="initialView">Choose an account</div></body></html>

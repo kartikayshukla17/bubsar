@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -32,7 +32,12 @@ export function project(toml = SAMPLE_TOML, world: object = EMPTY_WORLD) {
   const home = mkdtempSync(join(tmpdir(), "bb-home-"));
   const worldFile = join(mkdtempSync(join(tmpdir(), "bb-world-")), "world.json");
   writeFileSync(worldFile, JSON.stringify(world));
-  const env = { ...process.env, BB_HOME: home, BB_FAKE: worldFile };
+  const env = {
+    ...process.env,
+    BB_HOME: home,
+    BB_FAKE: worldFile,
+    BB_GOOGLE_AUTH_URL: "http://127.0.0.1:9/o/oauth2/v2/auth",
+  };
   return {
     dir,
     home,
@@ -41,6 +46,23 @@ export function project(toml = SAMPLE_TOML, world: object = EMPTY_WORLD) {
       const r = spawnSync(process.execPath, [BB, ...args], { cwd: dir, env, encoding: "utf8" });
       return { code: r.status, stdout: r.stdout, stderr: r.stderr };
     },
+    /** `bb` without blocking this process, so a stub server here can answer it. */
+    bbAsync: (args: string[], extra: Record<string, string> = {}) =>
+      new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
+        const child = spawn(process.execPath, [BB, ...args], {
+          cwd: dir,
+          env: { ...env, ...extra },
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (c) => {
+          stdout += c;
+        });
+        child.stderr.on("data", (c) => {
+          stderr += c;
+        });
+        child.on("close", (code) => done({ code, stdout, stderr }));
+      }),
     read: (file: string) => readFileSync(join(dir, file), "utf8"),
     /** The fake world as the CLI left it. */
     world: () => JSON.parse(readFileSync(worldFile, "utf8")),

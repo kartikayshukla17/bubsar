@@ -26,6 +26,7 @@ export function valueMark(s: BoardState, value: Value): Mark {
   const marks = value.routes.map((d) => routeMark(s, value, d));
   const order: Mark[] = [
     "failed",
+    "rejected",
     "drift",
     "handoff",
     "active",
@@ -37,7 +38,7 @@ export function valueMark(s: BoardState, value: Value): Mark {
     "verified",
   ];
   for (const m of order) if (marks.includes(m)) return m;
-  return "verified";
+  return "unknown";
 }
 
 /** Everything the board draws besides the strips: whose run, what it wires, how to drive it. */

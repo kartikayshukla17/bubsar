@@ -1,0 +1,10 @@
+# PROVISIONAL: hand-written from Google's documented behaviour for
+# https://accounts.google.com/o/oauth2/v2/auth, not recorded. No request was sent to Google to
+# make it. Replace it with a scrubbed recording from the sandbox client (BB-05 ticket,
+# "Real-world checks pending"). Client ID and redirect URI are fake.
+# Expect: unknown
+HTTP/1.1 429 Too Many Requests
+Content-Type: text/html; charset=UTF-8
+Retry-After: 60
+
+<html><head><title>429 Too Many Requests</title></head><body><h1>Too Many Requests</h1></body></html>

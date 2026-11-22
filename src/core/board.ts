@@ -11,6 +11,7 @@ export type Mark =
   | "handoff"
   | "applied"
   | "failed"
+  | "rejected"
   | "checking"
   | "verified"
   | "unexercised"
@@ -71,6 +72,8 @@ export type Step = {
   verify: { mark: "verified" | "unexercised"; note: string };
 };
 
+export type CheckMark = "verified" | "rejected" | "unknown" | "unexercised";
+
 export type StripState = { bay: BayId | null; mark: Mark; fresh: boolean; note?: string };
 
 export type BoardState = {
@@ -104,8 +107,8 @@ export type Action =
   | { type: "apply-done" }
   | { type: "fail"; id: string; note: string }
   | { type: "verify-start" }
-  | { type: "check"; id: string }
-  | { type: "checked"; id: string }
+  | { type: "check"; id: string; note?: string }
+  | { type: "checked"; id: string; mark?: CheckMark; note?: string }
   | { type: "verify-done" }
   | { type: "focus"; value: ValueId }
   | { type: "reset" };
@@ -161,14 +164,12 @@ export function reduce(s: BoardState, a: Action): BoardState {
     case "verify-start":
       return { ...s, phase: "verifying" };
     case "check":
-      return patch(s, a.id, { mark: "checking" });
+      return patch(s, a.id, { mark: "checking", note: a.note });
     case "checked": {
+      if (a.mark) return patch(s, a.id, { mark: a.mark, fresh: true, note: a.note });
       const step = find(a.id);
-      return patch(s, a.id, {
-        mark: step?.verify.mark ?? "verified",
-        fresh: true,
-        note: step?.verify.note,
-      });
+      if (!step) return patch(s, a.id, { mark: "unknown", fresh: true });
+      return patch(s, a.id, { mark: step.verify.mark, fresh: true, note: step.verify.note });
     }
     case "verify-done":
       return { ...s, phase: "verified" };

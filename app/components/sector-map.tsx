@@ -51,6 +51,8 @@ function strokeFor(mark: MarkKind, focused: boolean) {
       return { stroke: "rgb(255 255 255 / 0.85)", width: 1.5, dash: "10 5", flow: false };
     case "failed":
       return { stroke: "rgb(255 255 255 / 0.9)", width: 2, dash: "1.5 3.5", flow: false };
+    case "rejected":
+      return { stroke: "rgb(255 255 255 / 0.9)", width: 2, dash: "8 3 1.5 3", flow: false };
     default:
       return { stroke: "rgb(255 255 255 / 0.55)", width: 1.5, dash: "3 4", flow: false };
   }
@@ -214,6 +216,7 @@ export function MarkLegend() {
     "drift",
     "handoff",
     "failed",
+    "rejected",
     "unexercised",
     "unknown",
   ];

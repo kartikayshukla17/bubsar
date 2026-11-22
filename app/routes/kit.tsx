@@ -21,6 +21,7 @@ const ALL_MARKS: MarkKind[] = [
   "handoff",
   "applied",
   "failed",
+  "rejected",
   "checking",
   "verified",
   "unexercised",
@@ -79,6 +80,46 @@ const failedBoard = [
   { type: "start" } as const,
   { type: "activate", id: "google" } as const,
   { type: "fail", id: "google", note: SAVE_REJECTED } as const,
+].reduce(reduce, demoBoard);
+
+const CHECKED_URI = `${NEW_TUNNEL}${CB}`;
+const ORIGIN_STEP: Step = {
+  ...google("google-origin-1", OLD_TUNNEL, NEW_TUNNEL),
+  field: "Authorized JavaScript origin",
+};
+const VERIFY_STRIPS: [Step, StripState][] = [
+  [READ_STEPS[0], st("checking", "waiting for Google to pick up the change")],
+  [READ_STEPS[0], st("verified", `Google accepted ${CHECKED_URI} as a redirect URI`)],
+  [READ_STEPS[0], st("rejected", "Not accepted yet. Re-run `bb verify` later.")],
+  [
+    READ_STEPS[0],
+    st(
+      "unknown",
+      "Couldn't tell: Google rate-limited the check. Not verified; re-run `bb verify`.",
+    ),
+  ],
+  [
+    ORIGIN_STEP,
+    st(
+      "unexercised",
+      "Origin listed. This check doesn't exercise it; sign-in through the app would.",
+    ),
+  ],
+];
+const rejectedBoard = [
+  { type: "plan" } as const,
+  { type: "start" } as const,
+  { type: "activate", id: "google" } as const,
+  { type: "settle", id: "google" } as const,
+  { type: "apply-done" } as const,
+  { type: "verify-start" } as const,
+  { type: "check", id: "google" } as const,
+  {
+    type: "checked",
+    id: "google",
+    mark: "rejected",
+    note: "Not accepted yet. Re-run `bb verify` later.",
+  } as const,
 ].reduce(reduce, demoBoard);
 
 export default function Kit() {
@@ -256,6 +297,27 @@ export default function Kit() {
             <SectorMap
               scene={DEMO_SCENE}
               board={{ ...failedBoard, focus: "tunnel.url" }}
+              onFocus={() => {}}
+              glass={false}
+            />
+          </div>
+        </div>
+      </Row>
+
+      <Row
+        title="Verify"
+        note="bb verify asks Google's authorize endpoint, signed out. Green only when Google accepted the redirect URI. Not accepted yet is not a failure: Google can take minutes to pick up a change. Origins aren't exercised by this check, and say so."
+      >
+        <div className="grid gap-4">
+          <div className="bb-kit-rack grid gap-[6px]">
+            {VERIFY_STRIPS.map(([step, state]) => (
+              <Strip key={state.mark} step={step} index={1} total={2} state={state} />
+            ))}
+          </div>
+          <div className="max-w-[640px]">
+            <SectorMap
+              scene={DEMO_SCENE}
+              board={{ ...rejectedBoard, focus: "tunnel.url" }}
               onFocus={() => {}}
               glass={false}
             />

@@ -8,6 +8,7 @@ export const MARK_LABEL: Record<MarkKind, string> = {
   handoff: "Your turn",
   applied: "Applied",
   failed: "Failed",
+  rejected: "Not accepted",
   verified: "Verified",
   unexercised: "Not exercised",
   unknown: "Never verified",
@@ -103,6 +104,22 @@ export function Mark({
             strokeWidth="1.8"
             strokeLinecap="round"
           />
+        </svg>
+      );
+    case "rejected":
+      return (
+        <svg {...common}>
+          <rect
+            x="1.75"
+            y="1.75"
+            width="12.5"
+            height="12.5"
+            rx="2"
+            fill="none"
+            stroke={fg}
+            strokeWidth="1.5"
+          />
+          <path d="M4.5 8h7" stroke={fg} strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     case "drift":

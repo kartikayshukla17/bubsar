@@ -3,6 +3,7 @@ import type { Step } from "../core/board";
 import type { Config } from "../core/config";
 import type { Change, Diff, Entry } from "../core/diff";
 import type { Lists } from "../core/recipes/google/console";
+import type { UriResult, VerifyOutcome } from "../core/verify/verify";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -103,4 +104,54 @@ export function printApplied(read: Lists, next: Lists): string {
     `${plural(c.adds + c.removes, "change")} applied: ${c.adds} added, ${c.removes} removed. Not verified: nothing has checked that Google accepts the new redirect URI yet.`,
     "",
   ].join("\n");
+}
+
+export function printVerifyHead(config: Config): string {
+  const google = config.destinations.google;
+  const lines = [`busbar verify · ${config.project.name}`, ""];
+  if (google) lines.push(`Google · OAuth web client ${google.client_id} in ${google.project_id}`);
+  lines.push(
+    "Asked Google's authorize endpoint directly, signed out: no browser, no session.",
+    "",
+    "",
+  );
+  return lines.join("\n");
+}
+
+const VERDICT_LABEL: Record<UriResult["result"], string> = {
+  accepted: "verified",
+  rejected: "not accepted",
+  unknown: "unknown",
+};
+const COL = 15;
+
+export function printVerified(out: VerifyOutcome): string {
+  const pad = " ".repeat(COL + 2);
+  const lines = [LIST_TITLE.redirectUris];
+  for (const r of out.redirects) {
+    lines.push(`  ${VERDICT_LABEL[r.result].padEnd(COL)}${r.uri}`);
+    const status = r.status === null ? "" : ` (HTTP ${r.status})`;
+    lines.push(`${pad}${r.why}${status}.${r.result === "rejected" ? " Not accepted yet." : ""}`);
+  }
+  if (out.origins.length) {
+    lines.push("", LIST_TITLE.jsOrigins);
+    for (const o of out.origins) lines.push(`  ${"not exercised".padEnd(COL)}${o}`);
+    lines.push(`${pad}This check doesn't exercise origins; sign-in through the app would.`);
+  }
+  const count = (r: UriResult["result"]) => out.redirects.filter((x) => x.result === r).length;
+  const said: string[] = [];
+  if (out.code === 0)
+    said.push(`Verified: Google accepts ${plural(count("accepted"), "redirect URI")}.`);
+  if (count("rejected"))
+    said.push(
+      `Not accepted yet: ${plural(count("rejected"), "redirect URI")}. Google can take minutes or longer to pick up a change. Re-run \`bb verify\` later.`,
+    );
+  if (count("unknown"))
+    said.push(
+      `Not verified: busbar couldn't tell for ${plural(count("unknown"), "redirect URI")}. Re-run \`bb verify\`.`,
+    );
+  if (out.origins.length)
+    said.push(`${plural(out.origins.length, "origin")} listed, not exercised.`);
+  lines.push("", said.join(" "), "");
+  return lines.join("\n");
 }

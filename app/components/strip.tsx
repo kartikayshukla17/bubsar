@@ -59,6 +59,8 @@ export function Strip({
     </span>
   ) : failed ? (
     <span className="bb-strip__sub">Stopped here</span>
+  ) : state.mark === "rejected" ? (
+    <span className="bb-strip__sub">Google hasn't accepted it</span>
   ) : (
     <span className="bb-strip__sub">
       {removes ? "Removed, not yet verified" : "Written, not yet verified"}

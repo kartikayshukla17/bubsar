@@ -1,0 +1,15 @@
+# PROVISIONAL: hand-written from Google's documented behaviour for
+# https://accounts.google.com/o/oauth2/v2/auth, not recorded. No request was sent to Google to
+# make it. Replace it with a scrubbed recording from the sandbox client (BB-05 ticket,
+# "Real-world checks pending"). Client ID and redirect URI are fake.
+# Expect: unknown
+HTTP/1.1 302 Found
+Location: https://accounts.google.com.example.net/v3/signin/identifier?client_id=000000000000-fixture.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ffixture.ngrok-free.app%2Fapi%2Fauth%2Fcallback%2Fgoogle&response_type=code&scope=openid
+Content-Type: text/html; charset=UTF-8
+
+<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">
+<TITLE>302 Moved</TITLE></HEAD><BODY>
+<H1>302 Moved</H1>
+The document has moved
+<A HREF="https://accounts.google.com.example.net/v3/signin/identifier?client_id=000000000000-fixture.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Ffixture.ngrok-free.app%2Fapi%2Fauth%2Fcallback%2Fgoogle&response_type=code&scope=openid">here</A>.
+</BODY></HTML>

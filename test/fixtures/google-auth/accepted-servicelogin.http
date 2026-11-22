@@ -1,0 +1,15 @@
+# PROVISIONAL: hand-written from Google's documented behaviour for
+# https://accounts.google.com/o/oauth2/v2/auth, not recorded. No request was sent to Google to
+# make it. Replace it with a scrubbed recording from the sandbox client (BB-05 ticket,
+# "Real-world checks pending"). Client ID and redirect URI are fake.
+# Expect: accepted
+HTTP/1.1 302 Found
+Location: https://accounts.google.com/ServiceLogin?passive=1209600&continue=https%3A%2F%2Faccounts.google.com%2Fo%2Foauth2%2Fv2%2Fauth%3Fclient_id%3D000000000000-fixture.apps.googleusercontent.com%26redirect_uri%3Dhttps%3A%2F%2Ffixture.ngrok-free.app%2Fapi%2Fauth%2Fcallback%2Fgoogle%26response_type%3Dcode%26scope%3Dopenid%26from_login%3D1&followup=https%3A%2F%2Faccounts.google.com%2Fo%2Foauth2%2Fv2%2Fauth&oauth=1&sarp=1&scc=1
+Content-Type: text/html; charset=UTF-8
+
+<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">
+<TITLE>302 Moved</TITLE></HEAD><BODY>
+<H1>302 Moved</H1>
+The document has moved
+<A HREF="https://accounts.google.com/ServiceLogin?passive=1209600&continue=https%3A%2F%2Faccounts.google.com%2Fo%2Foauth2%2Fv2%2Fauth%3Fclient_id%3D000000000000-fixture.apps.googleusercontent.com%26redirect_uri%3Dhttps%3A%2F%2Ffixture.ngrok-free.app%2Fapi%2Fauth%2Fcallback%2Fgoogle%26response_type%3Dcode%26scope%3Dopenid%26from_login%3D1&followup=https%3A%2F%2Faccounts.google.com%2Fo%2Foauth2%2Fv2%2Fauth&oauth=1&sarp=1&scc=1">here</A>.
+</BODY></HTML>

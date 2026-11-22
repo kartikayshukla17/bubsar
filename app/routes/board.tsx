@@ -100,8 +100,11 @@ function liveStatus(s: BoardState): Status {
       };
     }
     case "applying":
-    case "verifying":
       return { text: busy ? `${busy.provider}: ${busy.activeNote}` : "Working", live: true };
+    case "verifying": {
+      const note = busy && s.strips[busy.id].note;
+      return { text: busy ? `${busy.provider}: ${note ?? "checking"}` : "Verifying", live: true };
+    }
     case "handoff":
       return { text: "Paused. One strip needs you.", live: false };
     case "applied":
@@ -110,10 +113,23 @@ function liveStatus(s: BoardState): Status {
         live: false,
       };
     case "verified":
-      return { text: "Verify finished.", live: false };
+      return { text: verifiedStatus(s), live: false };
     case "failed":
       return failedStatus(s);
   }
+}
+
+function verifiedStatus(s: BoardState) {
+  const count = (m: string) => s.steps.filter((st) => s.strips[st.id].mark === m).length;
+  const said = [
+    [count("verified"), "verified"],
+    [count("rejected"), "not accepted yet"],
+    [count("unknown"), "unknown"],
+    [count("unexercised"), "not exercised"],
+  ]
+    .filter(([n]) => n)
+    .map(([n, what]) => `${n} ${what}`);
+  return said.length ? `Verify finished: ${said.join(", ")}.` : "Verify finished.";
 }
 
 function BoardView({

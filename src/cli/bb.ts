@@ -6,6 +6,7 @@ import { cmdApply } from "./apply";
 import { serve } from "./daemon";
 import { cmdPlan } from "./plan";
 import { cmdLogin, cmdLogout, cmdStatus } from "./session";
+import { cmdVerify } from "./verify";
 
 declare const __BB_VERSION__: string;
 
@@ -44,6 +45,9 @@ try {
     case "apply":
       await cmdApply(rest);
       break;
+    case "verify":
+      process.exitCode = await cmdVerify(rest);
+      break;
     case "ui":
       await cmdUi(rest);
       break;
@@ -58,7 +62,7 @@ try {
       break;
     default:
       fail(
-        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb apply, bb login google, bb status`,
+        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb apply, bb verify, bb login google, bb status`,
       );
   }
 } catch (e) {
