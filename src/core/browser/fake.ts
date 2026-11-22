@@ -23,19 +23,14 @@ export type FakeWorld = {
     /**
      * Scripted failures of the console page, for the fake Google recipe:
      * `missingSelector` (a name from selectors.ts) makes the read fail as layout drift;
-     * `reauth: "read"` bounces the client page to sign-in although the session looked fine;
-     * `saveError` makes Google refuse the Save with that text (nothing is stored);
-     * `savedAs` makes the Save succeed but leaves the client holding these lists instead.
-     * To change the console between `bb plan` and `bb apply`, edit `client` in between.
+     * `reauth: "read"` bounces the client page to sign-in although the session looked fine.
      */
     fail?: { missingSelector?: string; reauth?: "read"; saveError?: string; savedAs?: Lists };
   };
-  /**
-   * Written by the fake Google recipe: every console operation, in order. A `save` is one
-   * press of Save (refused or not), with the lists it sent; count them for "how many saves".
-   */
+  /** Written by the fake Google recipe: every console operation, in order. */
   consoleCalls?: ({ op: "read"; url: string } | { op: "save"; url: string; lists: Lists })[];
   closeFails?: string;
+  closeHangs?: boolean;
   /** Written by the fake: every un-automated window opened. */
   openPlainCalls?: { browser: BrowserId; profileDir: string; url: string }[];
   /** Written by the fake: every automated attach. */
@@ -105,8 +100,9 @@ class FakePage implements Page {
     return this.#url;
   }
   async close() {
-    const fails = readWorld(this.file).closeFails;
-    if (fails) throw new Error(fails);
+    const { closeFails, closeHangs } = readWorld(this.file);
+    if (closeHangs) await new Promise(() => {});
+    if (closeFails) throw new Error(closeFails);
   }
   /** A 1x1 PNG: the fake world has no pixels. */
   async screenshot() {

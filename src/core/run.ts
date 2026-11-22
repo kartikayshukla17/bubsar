@@ -95,7 +95,6 @@ export function readRun(projectDir: string): Run | null {
   return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Run) : null;
 }
 
-/** Snapshot first, then the event: a reader that sees the event can fetch a snapshot with it. */
 export function appendEvent(projectDir: string, action: Action): Run {
   const run = readRun(projectDir);
   if (!run) throw new Error("no run to add to: .busbar/run.json is missing");

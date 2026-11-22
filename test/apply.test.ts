@@ -18,7 +18,7 @@ describe("bb apply refuses without a plan to act on", () => {
     expect(r.stdout).toBe("");
     expect(r.stderr).toBe("bb: No plan to apply. Run `bb plan --tunnel <url>` first.\n");
     expect(r.code).toBe(1);
-    expect(p.world().attachCalls).toHaveLength(1); // bb login's session check only
+    expect(p.world().attachCalls).toHaveLength(1);
     expect(calls(p.world(), "read")).toEqual([]);
   });
 });
@@ -104,6 +104,24 @@ describe("bb apply --yes", () => {
       { bay: "cleared", mark: "applied", fresh: true },
       { bay: "cleared", mark: "applied", fresh: true },
     ]);
+  });
+
+  it.each([
+    ["fails", { closeFails: "Target closed" }],
+    ["never returns", { closeHangs: true }],
+  ])("records the apply before closing the browser, even when the close %s", (_, close) => {
+    const p = planned();
+    p.setWorld({ ...p.world(), ...close });
+    const r = p.bb("apply", "--yes");
+    if ("closeFails" in close)
+      expect(r.stderr).toBe(
+        "bb: also couldn't close busbar's automated browser: Target closed. Quit it before the next bb command.\n",
+      );
+    expect(p.world().google.client).toEqual(next);
+    const google = JSON.parse(p.read(".busbar/state.json")).google;
+    expect(google.owned).toEqual({ redirectUris: [`${NEW}${CB}`], jsOrigins: [NEW] });
+    expect(google.planned.read).toEqual(next);
+    expect(eventsAfterPlan(p.read).at(-1)).toBe("apply-done");
   });
 
   it("starts a run for the board when .busbar/ has none", () => {

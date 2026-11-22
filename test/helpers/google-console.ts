@@ -34,8 +34,10 @@ export type StandIn = {
     reauth: "redirect" | "script" | null;
     /** Save answers 400 with this text, as Google shows a validation error. */
     saveError: string | null;
-    /** Save succeeds, but the client then holds these lists instead of what was sent. */
     storeAs: Lists | null;
+    saveDelayMs: number;
+    banner: { status?: string; alert?: string } | null;
+    savingText: string | null;
     /** Text replacements over the served page: drift the DOM without editing the fixture. */
     rewrite: [string, string][];
   };
@@ -71,7 +73,16 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
   });
   const s = {
     lists: { redirectUris: [], jsOrigins: [], ...init },
-    set: { renderDelayMs: 150, reauth: null, saveError: null, storeAs: null, rewrite: [] },
+    set: {
+      renderDelayMs: 150,
+      reauth: null,
+      saveError: null,
+      storeAs: null,
+      saveDelayMs: 0,
+      banner: null,
+      savingText: null,
+      rewrite: [],
+    },
     requests: [],
     saves: [],
   } as Pick<StandIn, "lists" | "set" | "requests" | "saves">;
@@ -85,6 +96,7 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
       res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(v));
     if (req.method === "POST" && url === `${path}/save${query}`) {
       const next = JSON.parse(await body(req)) as Lists;
+      await new Promise((r) => setTimeout(r, s.set.saveDelayMs));
       if (s.set.saveError) return json(400, { error: s.set.saveError });
       s.lists = s.set.storeAs ?? next;
       s.saves.push(next);
@@ -104,6 +116,8 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
       renderDelayMs: s.set.renderDelayMs,
       reauth: s.set.reauth,
       accountsOrigin: accounts.origin,
+      banner: s.set.banner,
+      savingText: s.set.savingText,
     };
     const data = JSON.stringify(state).replace(/</g, "\\u003c");
     let html = PAGE.replace(`${STATE_TAG}${PLACEHOLDER}`, () => `${STATE_TAG}${data}`);

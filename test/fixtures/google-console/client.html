@@ -16,7 +16,6 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- No favicon fetch, so the server's request log holds only what the recipe asked for. -->
     <link rel="icon" href="data:," />
     <title>Client ID for Web application · Google Auth Platform (busbar stand-in)</title>
   </head>
@@ -38,8 +37,6 @@
         return el;
       };
 
-      // Framework-like: the model changes only through input events and Save sends the model,
-      // so a value set from script without events leaves it stale.
       const models = {};
 
       function list(label, values) {
@@ -102,7 +99,7 @@
 
       async function save(event) {
         event.preventDefault();
-        document.getElementById("toast").textContent = "";
+        document.getElementById("toast").textContent = state.savingText ?? "";
         document.getElementById("error").textContent = "";
         const body = {
           redirectUris: models["Authorized redirect URIs"],
@@ -129,6 +126,8 @@
             "form",
             { "aria-label": "OAuth client", onsubmit: save },
             h("h1", {}, "Client ID for Web application"),
+            h("div", { role: "status" }, state.banner?.status ?? ""),
+            h("div", { role: "alert" }, state.banner?.alert ?? ""),
             h("p", {}, "Client ID ", h("code", {}, state.clientId)),
             h("label", {}, "Name ", h("input", { name: "displayName", value: "Web client 1" })),
             list("Authorized JavaScript origins", state.lists.jsOrigins),

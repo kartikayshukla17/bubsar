@@ -17,7 +17,7 @@ function stillDesired(config: Config, planned: Planned) {
   try {
     return sameLists(desiredLists(config, planned.values), planned.desired);
   } catch {
-    return false; // busbar.toml now declares a value the plan had none for
+    return false;
   }
 }
 
@@ -91,6 +91,15 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()) {
     show: (read, next) =>
       process.stdout.write(printApply(config, read, next, profile.browser.name)),
     confirm: (n) => confirm(n, flags.yes ?? false),
+    saved: (saved, asPlanned) =>
+      writeState(cwd, {
+        ...state,
+        google: {
+          ...gstate,
+          owned: ownedAfter(gstate.owned, planned.read, planned.next, saved),
+          planned: asPlanned ? { ...planned, read: saved, next: saved } : planned,
+        },
+      }),
     emit: (a) => appendEvent(cwd, a),
   };
   const out = await withConsole(gc, () => applyPlan(gc, planned, steps, io));
@@ -101,26 +110,9 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()) {
     case "declined":
       throw new Error("Not applied: you answered no. Nothing changed in Google.");
     case "applied":
-      writeState(cwd, {
-        ...state,
-        google: {
-          ...gstate,
-          owned: ownedAfter(gstate.owned, planned.read, planned.next, out.saved),
-          // read = next: the plan is spent, so a second apply has nothing to do.
-          planned: { ...planned, read: out.saved, next: out.saved },
-        },
-      });
       process.stdout.write(printApplied(planned.read, planned.next));
       return;
     case "failed":
-      if (out.saved)
-        writeState(cwd, {
-          ...state,
-          google: {
-            ...gstate,
-            owned: ownedAfter(gstate.owned, planned.read, planned.next, out.saved),
-          },
-        });
       if (out.error instanceof ReauthRequired) recordSession(cwd, "signed-out");
       throw out.error;
   }

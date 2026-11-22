@@ -7,8 +7,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     globalSetup: ["test/helpers/build.ts"],
-    // Most CLI tests spawn the built bb several times; under heavy machine load they crept
-    // up on vitest's 5s default (BB-03 report).
     testTimeout: 20_000,
   },
 });

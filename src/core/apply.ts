@@ -7,8 +7,8 @@ import type { Planned } from "./state";
 
 export type ApplyIO = {
   show(read: Lists, next: Lists): void;
-  /** May throw to refuse, e.g. no terminal to ask in. */
   confirm(changes: number): Promise<boolean>;
+  saved(saved: Lists, asPlanned: boolean): void;
   emit(action: Action): void;
 };
 
@@ -16,8 +16,7 @@ export type ApplyOutcome =
   | { result: "changed"; read: Lists }
   | { result: "declined" }
   | { result: "applied"; saved: Lists }
-  /** `saved` is set when Google saved but shows something other than the plan. */
-  | { result: "failed"; error: Error; saved?: Lists };
+  | { result: "failed"; error: Error };
 
 const KEYS = ["redirectUris", "jsOrigins"] as const;
 export const LIST_TITLE: Record<keyof Lists, string> = {
@@ -35,7 +34,6 @@ export function changes(read: Lists, next: Lists) {
   return { ...lists, adds: count("add"), removes: count("remove") };
 }
 
-/** Ownership follows the read-back, not the plan: only adds Google kept, only removals it dropped. */
 export function ownedAfter(owned: Lists, read: Lists, next: Lists, saved: Lists): Lists {
   const c = changes(read, next);
   const list = (k: keyof Lists) => {
@@ -72,9 +70,9 @@ export async function applyPlan(
   steps: Step[],
   io: ApplyIO,
 ): Promise<ApplyOutcome> {
-  const fail = (error: Error, saved?: Lists): ApplyOutcome => {
+  const fail = (error: Error): ApplyOutcome => {
     for (const s of steps) io.emit({ type: "fail", id: s.id, note: error.message });
-    return { result: "failed", error, saved };
+    return { result: "failed", error };
   };
   let read: Lists;
   try {
@@ -96,7 +94,9 @@ export async function applyPlan(
   } catch (e) {
     return fail(e as Error);
   }
-  if (!sameLists(saved, planned.next)) return fail(new Error(mismatch(saved, planned.next)), saved);
+  const asPlanned = sameLists(saved, planned.next);
+  io.saved(saved, asPlanned);
+  if (!asPlanned) return fail(new Error(mismatch(saved, planned.next)));
   for (const s of steps) io.emit({ type: "settle", id: s.id });
   io.emit({ type: "apply-done" });
   return { result: "applied", saved };

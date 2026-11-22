@@ -47,11 +47,13 @@ describe.skipIf(!browser)(
       standIn.set.rewrite = [];
       standIn.set.saveError = null;
       standIn.set.storeAs = null;
+      standIn.set.saveDelayMs = 0;
+      standIn.set.banner = null;
+      standIn.set.savingText = null;
       standIn.requests.length = 0;
       standIn.saves.length = 0;
     });
 
-    // The two that only show after Save (AFTER_SAVE) are proven by the write tests below.
     it("selector contract: every recorded selector matches the client page", async () => {
       await page.goto(standIn.clientUrl);
       const missing = [];
@@ -171,7 +173,7 @@ describe.skipIf(!browser)(
         standIn.lists = structuredClone(before);
         const r = recipe();
         await r.read();
-        await page.goto(standIn.clientUrl); // the page reloads behind the recipe's back
+        await page.goto(standIn.clientUrl);
         await expect(r.write(next)).rejects.toThrow(
           "The client page reloaded after busbar read it, so busbar didn't press Save. Nothing was changed.",
         );
@@ -181,7 +183,7 @@ describe.skipIf(!browser)(
 
       it("edits that didn't take on the page: no Save", async () => {
         standIn.lists = structuredClone(before);
-        standIn.set.rewrite = [["onclick: () => remove(li)", "onclick: () => {}"]]; // delete does nothing
+        standIn.set.rewrite = [["onclick: () => remove(li)", "onclick: () => {}"]];
         const r = recipe();
         await r.read();
         await expect(r.write(next)).rejects.toThrow(
@@ -192,7 +194,7 @@ describe.skipIf(!browser)(
 
       it("a Save with no confirmation fails without claiming anything was saved", async () => {
         standIn.lists = structuredClone(before);
-        standIn.set.rewrite = [['id="toast" role="status"', 'id="toast"']]; // the toast never shows
+        standIn.set.rewrite = [['id="toast" role="status"', 'id="toast"']];
         const r = recipe();
         await r.read();
         await expect(r.write(next)).rejects.toThrow(
@@ -204,11 +206,37 @@ describe.skipIf(!browser)(
         standIn.lists = structuredClone(before);
         const r = recipe();
         await r.read();
-        standIn.set.rewrite = [['list("Authorized redirect URIs"', 'list("Redirect URIs"']]; // only the reload drifts
+        standIn.set.rewrite = [['list("Authorized redirect URIs"', 'list("Redirect URIs"']];
         await expect(r.write(next)).rejects.toThrow(
           "Google confirmed the Save, but busbar couldn't read the client back (Google console layout changed: `redirectUris` not found). Run `bb plan` to see what it holds.",
         );
         expect(standIn.saves).toEqual([next]);
+      });
+
+      it.each([
+        [
+          "a status banner already on the page",
+          { status: "Changes may take a few minutes to take effect" },
+        ],
+        ["an alert banner already on the page", { alert: "This client is used by 2 apps" }],
+      ])("waits for Google's answer to this Save, not %s", async (_, banner) => {
+        standIn.lists = structuredClone(before);
+        standIn.set.banner = banner;
+        standIn.set.saveDelayMs = 400;
+        const r = recipe();
+        await r.read();
+        expect(await r.write(next)).toEqual({ saved: next });
+        expect(standIn.requests).toEqual([PAGE, SAVE, PAGE]);
+      });
+
+      it("waits past a Saving… status for the final confirmation", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.savingText = "Saving…";
+        standIn.set.saveDelayMs = 400;
+        const r = recipe();
+        await r.read();
+        expect(await r.write(next)).toEqual({ saved: next });
+        expect(standIn.requests).toEqual([PAGE, SAVE, PAGE]);
       });
 
       it("a Save Google refuses is SaveRejected, in Google's own words", async () => {

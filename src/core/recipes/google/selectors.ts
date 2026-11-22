@@ -43,6 +43,9 @@ export const SELECTORS = {
   saveError: '[role="alert"]:not(:empty)',
 } as const;
 
+/** Status text that means the Save is still in flight, not answered. Seen on the stand-in only. */
+export const SAVE_IN_PROGRESS = /^(saving|updating)\b|(…|\.\.\.)$/i;
+
 /** Selectors that only match once Save was pressed; the selector contract checks the rest on load. */
 export const AFTER_SAVE: SelectorName[] = ["savedToast", "saveError"];
 

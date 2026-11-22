@@ -83,6 +83,9 @@ below pass.
   - A reload between read and write aborts before any edit, with no Save.
   - Edits that don't show on the page: no Save.
   - No confirmation after Save: fails, and doesn't claim anything was saved.
+  - A status or alert banner already on the page before Save, or a "Saving…" status
+    before the final toast, isn't taken as Google's answer. busbar waits for the real one
+    (the stand-in answers Save after 400 ms).
   - A read-back that fails after a confirmed Save never says "Nothing was changed".
   - A refused Save is `SaveRejected` with Google's text, and the lists are unchanged.
   - The selector contract skips `savedToast` and `saveError`, which only appear after Save.
@@ -99,6 +102,8 @@ below pass.
   - refused Save: `failed` in Google's words, never `applied`
   - read-back mismatch: `failed`, and ownership follows what Google holds
   - sign-in bounce at the re-read: `failed`, local.json signed-out, zero saves
+  - the browser close fails or never returns after a successful Save: state.json already
+    owns the adds and holds the spent plan, and `apply-done` was already emitted
 - Seam 3, `test/plan.test.ts`:
   - `planned` records `values` and `desired`.
   - A failed read (selector or sign-in) starts a run whose unread strips are `failed` with
@@ -126,6 +131,13 @@ below pass.
   token on the document's window, checked before editing and again before Save. Before
   Save, write re-reads the page's lists through the fail-closed `list()` and requires them
   to equal `next`. That check also refuses any `next` that would need a reorder.
+- Google's answer to Save is only text that appeared after the press. busbar snapshots the
+  status and alert regions before clicking. A new alert is a refusal. A new status is the
+  confirmation unless it reads as in progress (`SAVE_IN_PROGRESS` in selectors.ts:
+  "Saving…", "Updating…", a trailing ellipsis). Otherwise busbar waits until the timeout.
+- State is written as soon as the read-back is known, before `settle`/`apply-done`/`fail`
+  and before the browser closes. The board never says Applied while state.json still
+  holds the old plan.
 - `PuppeteerPage.fill` focuses the field, selects all, presses Backspace, then types. Every
   change is a real key event.
 - `withConsole` closes the browser after plan and apply. A close failure is reported on its

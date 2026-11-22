@@ -156,7 +156,6 @@ export function reduce(s: BoardState, a: Action): BoardState {
       };
     case "apply-done":
       return { ...s, phase: "applied" };
-    // The strip stays in the bay it stopped in: the board shows how far the run got.
     case "fail":
       return { ...patch(s, a.id, { mark: "failed", fresh: true, note: a.note }), phase: "failed" };
     case "verify-start":

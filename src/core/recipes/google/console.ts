@@ -1,5 +1,5 @@
 import type { Page } from "../../browser/driver";
-import { LISTS, SELECTORS, type SelectorName } from "./selectors";
+import { LISTS, SAVE_IN_PROGRESS, SELECTORS, type SelectorName } from "./selectors";
 
 /** The OAuth web client's two lists, as the console shows them, in order. */
 export type Lists = { redirectUris: string[]; jsOrigins: string[] };
@@ -97,14 +97,12 @@ export class PageGoogleConsole implements GoogleConsole {
     return lists;
   }
 
-  /** `next` must be the read lists minus drops, plus adds appended: the page can't reorder. */
   async write(next: Lists): Promise<{ saved: Lists }> {
     await this.sameLoad();
     for (const key of ["redirectUris", "jsOrigins"] as const) {
       const l = LISTS[key];
       const now = await this.page.values(SELECTORS[l.inputs]);
       const drop = now.flatMap((url, i) => (next[key].includes(url) ? [] : [i]));
-      // Last first, so the indexes still to delete don't shift.
       for (const i of drop.reverse()) await this.page.click(SELECTORS[l.deletes], i);
       const kept = now.length - drop.length;
       for (const [j, url] of next[key].filter((u) => !now.includes(u)).entries()) {
@@ -121,14 +119,9 @@ export class PageGoogleConsole implements GoogleConsole {
       throw new Error(
         "busbar's edits didn't show on the client page as planned, so it didn't press Save. Nothing was changed.",
       );
-    await this.page.click(SELECTORS.saveButton);
-    const answered = await this.page.exists(
-      `${SELECTORS.savedToast}, ${SELECTORS.saveError}`,
-      this.#timeoutMs,
-    );
-    const refused = await this.page.text(SELECTORS.saveError);
-    if (refused) throw new SaveRejected(refused);
-    if (!answered)
+    const answer = await this.answerTo(() => this.page.click(SELECTORS.saveButton));
+    if (answer.refused !== undefined) throw new SaveRejected(answer.refused);
+    if (!answer.saved)
       throw new Error(
         "busbar pressed Save, but Google showed neither a confirmation nor an error. busbar can't tell what was saved: run `bb plan` to read the client again.",
       );
@@ -157,6 +150,26 @@ export class PageGoogleConsole implements GoogleConsole {
       throw new Error(
         "The client page reloaded after busbar read it, so busbar didn't press Save. Nothing was changed.",
       );
+  }
+
+  private async answerTo(press: () => Promise<void>) {
+    const texts = (css: string) => this.page.values(css);
+    const before = {
+      status: await texts(SELECTORS.savedToast),
+      alert: await texts(SELECTORS.saveError),
+    };
+    await press();
+    const until = Date.now() + this.#timeoutMs;
+    while (Date.now() < until) {
+      const refused = (await texts(SELECTORS.saveError)).find((t) => !before.alert.includes(t));
+      if (refused !== undefined) return { refused };
+      const saved = (await texts(SELECTORS.savedToast)).find(
+        (t) => !before.status.includes(t) && !SAVE_IN_PROGRESS.test(t),
+      );
+      if (saved !== undefined) return { saved };
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return {};
   }
 
   private async notSignIn() {

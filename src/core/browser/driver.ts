@@ -14,10 +14,6 @@ export interface Page {
   fill(css: string, nth: number, value: string): Promise<void>;
   /** Trimmed text of the first match, or null when nothing matches. */
   text(css: string): Promise<string | null>;
-  /**
-   * An id for the document now loaded: the same until the next load, reload or navigation
-   * to another document, then a new one. The recipe never saves a page it didn't read.
-   */
   loadId(): Promise<string>;
   /** PNG of the visible page. Only for `--debug`, which warns what it may show. */
   screenshot(): Promise<Uint8Array>;

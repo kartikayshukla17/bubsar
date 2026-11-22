@@ -54,7 +54,6 @@ export function recordSession(projectDir: string, session: Session) {
     });
 }
 
-/** A failed close is reported on its own line and never replaces `fn`'s result or error. */
 export async function withConsole<T>(gc: GoogleConsole, fn: () => Promise<T>): Promise<T> {
   const close = () =>
     gc.close().catch((e: unknown) => {
