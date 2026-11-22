@@ -9,7 +9,6 @@ export type Fixture = {
   body: string;
 };
 
-/** A raw response under test/fixtures/google-auth/: `#` header lines, status line, headers, body. */
 export function fixture(name: string): Fixture {
   const text = readFileSync(
     new URL(`../fixtures/google-auth/${name}.http`, import.meta.url),
@@ -34,7 +33,6 @@ export function fixture(name: string): Fixture {
   return { expect, status, headers, body: rest.slice(blank + 1).join("\n") };
 }
 
-/** A fixture as the verify check hands it to the classifier. */
 export function answerOf(name: string) {
   const f = fixture(name);
   return { status: f.status, location: f.headers.location ?? null, body: f.body };
@@ -48,17 +46,12 @@ export type Seen = {
 };
 
 export type AuthStub = {
-  /** Stands in for https://accounts.google.com/o/oauth2/v2/auth (BB_GOOGLE_AUTH_URL). */
   url: string;
   origin: string;
   requests: Seen[];
   close(): Promise<void>;
 };
 
-/**
- * A local stand-in for Google's authorize endpoint on 127.0.0.1. `answer` picks the response
- * for each request from its redirect_uri and how many times that URI was asked before.
- */
 export async function authStub(
   answer: (redirectUri: string, nth: number) => string | Omit<Fixture, "expect">,
 ): Promise<AuthStub> {
@@ -87,7 +80,6 @@ export async function authStub(
   };
 }
 
-/** An authorize URL on a loopback port nothing listens on: the network is off. */
 export async function deadAuthUrl() {
   const server = createServer();
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

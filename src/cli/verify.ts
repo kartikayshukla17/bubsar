@@ -5,7 +5,7 @@ import { sameLists } from "../core/recipes/google/console";
 import { appendEvent, describe, readRun, startRun } from "../core/run";
 import { googleState, readState, writeState } from "../core/state";
 import { askAuthorize, authUrl } from "../core/verify/authorize";
-import { targets, verifyGoogle } from "../core/verify/verify";
+import { stepsMatch, targets, verifyGoogle } from "../core/verify/verify";
 import { printVerified, printVerifyHead } from "./print";
 
 function waitSeconds(raw: string | undefined) {
@@ -14,7 +14,6 @@ function waitSeconds(raw: string | undefined) {
   return Number(raw);
 }
 
-/** `bb verify [--wait <seconds>]`. Returns the exit code: 0 verified, 3 not (yet). */
 export async function cmdVerify(argv: string[]): Promise<number> {
   const { values: flags } = parseArgs({ args: argv, options: { wait: { type: "string" } } });
   const waitMs = waitSeconds(flags.wait) * 1000;
@@ -51,6 +50,10 @@ export async function cmdVerify(argv: string[]): Promise<number> {
       { project: config.project.name, ...describe(config, planned.values) },
       { type: "plan", steps: plannedSteps(config, planned) },
     ).board.steps;
+  if (!stepsMatch(steps, want))
+    throw new Error(
+      "The board's last run doesn't match the last plan, so busbar can't say which strip a check proves. Run `bb plan` again, then `bb verify`.",
+    );
   process.stdout.write(printVerifyHead(config));
   const endpoint = authUrl();
   const out = await verifyGoogle(want, steps, waitMs, {

@@ -97,7 +97,8 @@ checks below pass.
   - event order, with each check recorded before `checked` and the waiting note on the
     strip while it waits
   - a removal is "Entry removed. Nothing to check"
-  - a redirect strip busbar didn't ask about is `unknown`, never green
+  - a redirect strip busbar didn't ask about is `unknown`, never green, and makes the
+    exit code 3
 - Seam 4, `test/verify-http.test.ts` (local stub):
   - one GET with exactly the four parameters, no `cookie` header, Node's user agent and no
     browser client hints
@@ -112,6 +113,8 @@ checks below pass.
   - **refusals:** no plan read yet (exit 0, nothing asked), plan not applied (exit 1),
     bad `--wait` (exit 1), no Google destination (exit 0), nothing on the client to check
     (exit 0)
+  - **a run that doesn't match the plan:** a redirect strip, or an origin strip, whose
+    entry isn't one busbar would check. Refused with exit 1, nothing asked, no events.
 
 Where a test passed on its first run, a mutation proved it. The task report lists each one.
 
@@ -155,7 +158,15 @@ Where a test passed on its first run, a mutation proved it. The task report list
   - While verifying, it shows the busy strip's note, not the apply note.
   - After verify, it counts verified / not accepted yet / unknown / not exercised.
 - **Exit codes:** 0 when every redirect URI checked was accepted, or there was nothing to
-  verify. 3 when any is not accepted yet or unknown. 1 for refusals.
+  verify. 3 when any is not accepted yet or unknown, including a redirect strip that ended
+  `unknown` because it wasn't asked about. 1 for refusals. The summary says "Verified"
+  only when the exit code is 0.
+- **The board's run must match the plan.** `bb verify` reuses the current run's strips.
+  If any of them isn't a removal and isn't an entry busbar would check (redirect URIs and
+  origins from `targets`), it refuses: "The board's last run doesn't match the last plan,
+  so busbar can't say which strip a check proves. Run `bb plan` again, then `bb verify`."
+  Rebuilding the strips isn't possible after an apply, because `planned.read` no longer
+  holds what was there before the apply.
 - **Test safety:**
   - Every test project sets `BB_GOOGLE_AUTH_URL` to `http://127.0.0.1:9/…`, a port fetch
     refuses to use, so a forgotten override can't reach Google.

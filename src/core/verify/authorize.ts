@@ -7,10 +7,6 @@ export function authUrl(env = process.env) {
 const TIMEOUT_MS = 15_000;
 const MAX_BODY = 256 * 1024;
 
-/**
- * Ask Google's authorize endpoint about one redirect URI: a plain GET from Node, outside any
- * browser, with no session, no stored credentials, and no redirect followed.
- */
 export async function askAuthorize(
   endpoint: string,
   clientId: string,

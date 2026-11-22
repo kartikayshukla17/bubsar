@@ -30,15 +30,10 @@ export type UriResult = {
 
 export type VerifyOutcome = { redirects: UriResult[]; origins: string[]; code: 0 | 3 };
 
-/** 0 when every redirect URI checked was accepted (or there was none); 3 when any wasn't. */
 export function exitCode(results: Check["result"][]): 0 | 3 {
   return results.every((r) => r === "accepted") ? 0 : 3;
 }
 
-/**
- * What `bb verify` checks: the entries busbar.toml wants or busbar owns that are on the
- * client, as busbar last read or saved it.
- */
 export function targets(planned: Planned, owned: GoogleState["owned"]): Lists {
   const on = (k: keyof Lists) =>
     [...new Set([...planned.desired[k], ...owned[k]])].filter((u) => planned.read[k].includes(u));
@@ -48,6 +43,15 @@ export function targets(planned: Planned, owned: GoogleState["owned"]): Lists {
 const isRemoval = (s: Step) => s.to === "";
 const isRedirect = (s: Step) => s.id.startsWith("google-redirect-") && !isRemoval(s);
 const isOrigin = (s: Step) => s.id.startsWith("google-origin-") && !isRemoval(s);
+
+export function stepsMatch(steps: Step[], want: Lists): boolean {
+  return steps.every(
+    (s) =>
+      isRemoval(s) ||
+      (isRedirect(s) && want.redirectUris.includes(s.to)) ||
+      (isOrigin(s) && want.jsOrigins.includes(s.to)),
+  );
+}
 
 function concluded(uri: string, verdict: Verdict): { mark: CheckMark; note: string } {
   switch (verdict.result) {
@@ -108,17 +112,21 @@ export async function verifyGoogle(
     }
   }
 
+  const unchecked: Check["result"][] = [];
   for (const s of steps) {
     if (done.has(s.id)) continue;
     if (isOrigin(s)) io.emit({ type: "checked", id: s.id, mark: "unexercised", note: ORIGIN_NOTE });
     else if (isRemoval(s))
       io.emit({ type: "checked", id: s.id, mark: "unexercised", note: REMOVED_NOTE });
-    else io.emit({ type: "checked", id: s.id, mark: "unknown", note: NOT_ON_CLIENT });
+    else {
+      io.emit({ type: "checked", id: s.id, mark: "unknown", note: NOT_ON_CLIENT });
+      unchecked.push("unknown");
+    }
   }
   io.emit({ type: "verify-done" });
   return {
     redirects,
     origins: want.jsOrigins,
-    code: exitCode(redirects.map((r) => r.result)),
+    code: exitCode([...redirects.map((r) => r.result), ...unchecked]),
   };
 }

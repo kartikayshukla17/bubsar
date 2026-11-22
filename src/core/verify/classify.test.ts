@@ -5,6 +5,7 @@ import { classify } from "./classify";
 describe("verify classifier on Google authorize fixtures", () => {
   it.each([
     ["accepted-signin-identifier"],
+    ["accepted-servicelogin"],
     ["mismatch-error-redirect"],
     ["mismatch-error-page"],
     ["invalid-client"],

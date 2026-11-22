@@ -237,4 +237,28 @@ describe("bb verify with nothing it can check", () => {
     });
     expect(stub.requests).toEqual([]);
   });
+
+  it.each([
+    ["redirect", 0, `${OLD}${CB}`],
+    ["origin", 1, OLD],
+  ])(
+    "when the board's %s strip doesn't match the last plan: refuses, asks nothing, exits 1",
+    async (_, i, to) => {
+      const p = applied();
+      const run = JSON.parse(p.read(".busbar/run.json"));
+      run.board.steps[i].to = to;
+      writeFileSync(join(p.dir, ".busbar", "run.json"), JSON.stringify(run));
+      const events = p.read(".busbar/events.jsonl");
+      stub = await authStub(() => "accepted-signin-identifier");
+      const r = await p.bbAsync(["verify", "--wait", "0"], { BB_GOOGLE_AUTH_URL: stub.url });
+      expect(r).toEqual({
+        code: 1,
+        stdout: "",
+        stderr:
+          "bb: The board's last run doesn't match the last plan, so busbar can't say which strip a check proves. Run `bb plan` again, then `bb verify`.\n",
+      });
+      expect(stub.requests).toEqual([]);
+      expect(p.read(".busbar/events.jsonl")).toBe(events);
+    },
+  );
 });

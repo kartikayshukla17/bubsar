@@ -82,7 +82,7 @@ describe("verifyGoogle", () => {
     expect(out.code).toBe(0);
   });
 
-  it("marks a removal as nothing to check, and never greens a strip whose entry it didn't ask about", async () => {
+  it("marks a removal as nothing to check; a redirect strip it didn't ask about is unknown and exits 3", async () => {
     const log: unknown[] = [];
     const steps = [
       { ...strip("google-redirect-1", CB, "Authorized redirect URI"), from: "" },
@@ -111,6 +111,6 @@ describe("verifyGoogle", () => {
       },
       { type: "verify-done" },
     ]);
-    expect(out.code).toBe(0);
+    expect(out.code).toBe(3);
   });
 });

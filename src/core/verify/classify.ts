@@ -1,9 +1,7 @@
 import type { Check } from "../state";
 
-/** Google's answer to one authorize request, as busbar received it. `status` null: no answer. */
 export type AuthAnswer = {
   status: number | null;
-  /** absolute, already resolved against the request URL */
   location: string | null;
   body: string;
   error?: string;
