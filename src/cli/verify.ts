@@ -1,14 +1,15 @@
 import { parseArgs } from "node:util";
 import { plannedSteps } from "../core/apply";
+import type { Step } from "../core/board";
 import { loadConfig } from "../core/config";
-import { sameLists } from "../core/recipes/google/console";
+import { type Lists, sameLists } from "../core/recipes/google/console";
 import { appendEvent, describe, readRun, startRun } from "../core/run";
 import { googleState, readState, writeState } from "../core/state";
 import { askAuthorize, authUrl } from "../core/verify/authorize";
-import { stepsMatch, targets, verifyGoogle } from "../core/verify/verify";
+import { stepsMatch, targets, type VerifyOutcome, verifyGoogle } from "../core/verify/verify";
 import { printVerified, printVerifyHead } from "./print";
 
-function waitSeconds(raw: string | undefined) {
+export function waitSeconds(raw: string | undefined) {
   if (raw === undefined) return 600;
   if (!/^\d+$/.test(raw)) throw new Error(`--wait ${raw}: expected whole seconds, like --wait 600`);
   return Number(raw);
@@ -19,7 +20,7 @@ export async function cmdVerify(argv: string[]): Promise<number> {
   const waitMs = waitSeconds(flags.wait) * 1000;
   const cwd = process.cwd();
   const config = loadConfig(cwd);
-  const google = config.destinations?.google;
+  const google = config.destinations.google;
   const gstate = googleState(readState(cwd));
   const { planned } = gstate;
 
@@ -55,9 +56,21 @@ export async function cmdVerify(argv: string[]): Promise<number> {
       "The board's last run doesn't match the last plan, so busbar can't say which strip a check proves. Run `bb plan` again, then `bb verify`.",
     );
   process.stdout.write(printVerifyHead(config));
+  const out = await checkGoogle(cwd, google.client_id, want, steps, waitMs);
+  process.stdout.write(printVerified(out));
+  return out.code;
+}
+
+export function checkGoogle(
+  cwd: string,
+  clientId: string,
+  want: Lists,
+  steps: Step[],
+  waitMs: number,
+): Promise<VerifyOutcome> {
   const endpoint = authUrl();
-  const out = await verifyGoogle(want, steps, waitMs, {
-    ask: (uri) => askAuthorize(endpoint, google.client_id, uri),
+  return verifyGoogle(want, steps, waitMs, {
+    ask: (uri) => askAuthorize(endpoint, clientId, uri),
     clock: { now: Date.now, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
     emit: (a) => appendEvent(cwd, a),
     record: (c) => {
@@ -70,6 +83,4 @@ export async function cmdVerify(argv: string[]): Promise<number> {
         `Google hasn't accepted ${uri} yet: waiting for Google to pick up the change. Asking again in ${Math.ceil(ms / 1000)}s.\n`,
       ),
   });
-  process.stdout.write(printVerified(out));
-  return out.code;
 }

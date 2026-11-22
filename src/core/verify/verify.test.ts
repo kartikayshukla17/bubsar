@@ -1,18 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { answerOf } from "../../../test/helpers/google-auth";
 import type { Step } from "../board";
-import { exitCode, verifyGoogle } from "./verify";
-
-describe("verify exit code", () => {
-  it.each([
-    [[], 0],
-    [["accepted", "accepted"], 0],
-    [["accepted", "rejected"], 3],
-    [["accepted", "unknown"], 3],
-  ] as const)("%j → %i", (results, code) => {
-    expect(exitCode([...results])).toBe(code);
-  });
-});
+import { verifyGoogle } from "./verify";
 
 const NEW = "https://new.ngrok-free.app";
 const CB = `${NEW}/api/auth/callback/google`;

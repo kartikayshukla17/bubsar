@@ -85,7 +85,7 @@ describe("bb plan refuses bad input in one line, and writes nothing", () => {
     const p = project();
     const r = p.bb("plan", "--tunnel", "http://abcd.ngrok-free.app");
     expect(r.stderr).toBe(
-      "bb: --tunnel http://abcd.ngrok-free.app: expected an https origin like https://abcd.ngrok-free.app\n",
+      "bb: --tunnel http://abcd.ngrok-free.app: expected an https origin like https://abcd.ngrok-free.app, but it isn't https\n",
     );
     expect(r.code).toBe(1);
     expect(existsSync(join(p.dir, ".busbar"))).toBe(false);

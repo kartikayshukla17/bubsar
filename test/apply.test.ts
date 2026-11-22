@@ -1,7 +1,7 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { signedIn } from "./helpers/project";
+import { project, SAMPLE_TOML, signedIn } from "./helpers/project";
 
 const NEW = "https://new.ngrok-free.app";
 const OLD = "https://old.ngrok-free.app";
@@ -10,6 +10,22 @@ const CB = "/api/auth/callback/google";
 
 const calls = (world: { consoleCalls?: { op: string }[] }, op: string) =>
   (world.consoleCalls ?? []).filter((c) => c.op === op);
+
+describe("bb apply without a Google destination", () => {
+  it("says there's nothing to apply, starts no browser, exits 0", () => {
+    const p = project(SAMPLE_TOML.slice(0, SAMPLE_TOML.indexOf("[destinations.google]")), {
+      browsers: ["brave"],
+      google: { session: "signed-in" },
+    });
+    const r = p.bb("apply", "--yes");
+    expect(r).toEqual({
+      code: 0,
+      stderr: "",
+      stdout: "Nothing to apply: busbar.toml has no Google destination.\n",
+    });
+    expect(p.world().attachCalls).toBeUndefined();
+  });
+});
 
 describe("bb apply refuses without a plan to act on", () => {
   it("with no plan: says to run bb plan, starts no browser, exits 1", () => {

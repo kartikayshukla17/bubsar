@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { project, signedIn } from "./helpers/project";
+import { project, SAMPLE_TOML, signedIn } from "./helpers/project";
 
 // `bb plan` against the fake world (BB_FAKE): the Google client's lists, the session and
 // scripted failures live in the world file, so no browser and no Google are involved.
@@ -11,6 +11,26 @@ const OLD = "https://old.ngrok-free.app";
 const LOCAL = "http://localhost:3000";
 const CB = "/api/auth/callback/google";
 const none = { redirectUris: [], jsOrigins: [] };
+
+describe("bb plan without a Google destination", () => {
+  it.each([
+    ["no [destinations] table", SAMPLE_TOML.slice(0, SAMPLE_TOML.indexOf("[destinations.google]"))],
+    [
+      "an empty [destinations] table",
+      SAMPLE_TOML.replace(/\[destinations\.google\][\s\S]*$/, "[destinations]\n"),
+    ],
+  ])("with %s: says there's nothing to plan, starts no browser, exits 0", (_, toml) => {
+    const p = project(toml, { browsers: ["brave"], google: { session: "signed-in" } });
+    const r = p.bb("plan", "--tunnel", NEW);
+    expect(r).toEqual({
+      code: 0,
+      stderr: "",
+      stdout:
+        "Nothing to plan: busbar.toml has no Google destination. Add a [destinations.google] table.\n",
+    });
+    expect(p.world().attachCalls).toBeUndefined();
+  });
+});
 
 describe("bb plan before bb login google", () => {
   it("plans the declared entries as unknown, says how to read them, and starts no browser", () => {

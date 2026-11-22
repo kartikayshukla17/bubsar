@@ -57,12 +57,13 @@ export function project(toml = SAMPLE_TOML, world: object = EMPTY_WORLD) {
       return { code: r.status, stdout: r.stdout, stderr: r.stderr };
     },
     /** `bb` without blocking this process, so a stub server here can answer it. */
-    bbAsync: (args: string[], extra: Record<string, string> = {}) =>
+    bbAsync: (args: string[], extra: Record<string, string> = {}, input?: string) =>
       new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
         const child = spawn(process.execPath, [BB, ...args], {
           cwd: dir,
           env: { ...env, ...extra },
         });
+        if (input !== undefined) child.stdin.end(input);
         let stdout = "";
         let stderr = "";
         child.stdout.on("data", (c) => {

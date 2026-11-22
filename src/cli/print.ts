@@ -44,7 +44,12 @@ const WHY: Record<NonNullable<Entry["why"]>, string> = {
  * `bb plan` output after reading the console: per list, every entry with what happens to
  * it and why. URLs are public and shown in full.
  */
-export function printDiff(config: Config, d: Diff, browserName: string): string {
+export function printDiff(
+  config: Config,
+  d: Diff,
+  browserName: string,
+  command: "plan" | "rewire" = "plan",
+): string {
   const google = config.destinations.google;
   const lists: [string, Entry[]][] = [
     ["Authorized redirect URIs", d.redirectUris.entries],
@@ -53,7 +58,7 @@ export function printDiff(config: Config, d: Diff, browserName: string): string 
   const all = lists.flatMap(([, e]) => e);
   const label = Math.max(...all.map((e) => LABEL[e.change].length));
   const url = Math.max(...all.map((e) => e.url.length));
-  const lines = [`busbar plan · ${config.project.name}`, ""];
+  const lines = [`busbar ${command} · ${config.project.name}`, ""];
   if (google) lines.push(`Google · OAuth web client ${google.client_id} in ${google.project_id}`);
   lines.push(`Read just now from the Cloud console in busbar's ${browserName} profile.`);
   for (const [title, entries] of lists) {
@@ -163,5 +168,43 @@ export function printVerified(out: VerifyOutcome): string {
   if (out.origins.length)
     said.push(`${plural(out.origins.length, "origin")} listed, not exercised.`);
   lines.push("", said.join(" "), "");
+  return lines.join("\n");
+}
+
+const clock = (iso: string) => new Date(iso).toTimeString().slice(0, 5);
+
+function rewiredVerdict(r: UriResult): string {
+  switch (r.result) {
+    case "accepted":
+      return `verified (Google accepted it ${clock(r.at)})`;
+    case "rejected":
+      return `not accepted yet (${r.why} at ${clock(r.at)}). Re-run \`bb verify\` later.`;
+    case "unknown":
+      return `unknown, not verified (${r.why}). Re-run \`bb verify\`.`;
+  }
+}
+
+function ownership(d: Diff): string | null {
+  const all = [...d.redirectUris.entries, ...d.jsOrigins.entries];
+  const removed = all.filter((e) => e.change === "remove").length;
+  const kept = all.filter((e) => e.why === "not busbar's").length;
+  const said: string[] = [];
+  if (removed)
+    said.push(`Removed ${plural(removed, "old entry", "old entries")} busbar had added.`);
+  if (kept) {
+    const what = removed ? String(kept) : plural(kept, "entry", "entries");
+    said.push(`Kept ${what} that ${kept === 1 ? "isn't" : "aren't"} busbar's.`);
+  }
+  return said.length ? said.join(" ") : null;
+}
+
+export function printRewired(d: Diff, out: VerifyOutcome): string {
+  const lines = [""];
+  for (const r of out.redirects)
+    lines.push(`Google · redirect URI ${r.uri} · ${rewiredVerdict(r)}`);
+  for (const o of out.origins) lines.push(`Google · JS origin ${o} · listed, not exercised`);
+  const owned = ownership(d);
+  if (owned) lines.push(owned);
+  lines.push("");
   return lines.join("\n");
 }

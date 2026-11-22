@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { cmdApply } from "./apply";
 import { serve } from "./daemon";
 import { cmdPlan } from "./plan";
+import { cmdRewire } from "./rewire";
 import { cmdLogin, cmdLogout, cmdStatus } from "./session";
 import { cmdVerify } from "./verify";
 
@@ -48,6 +49,9 @@ try {
     case "verify":
       process.exitCode = await cmdVerify(rest);
       break;
+    case "rewire":
+      process.exitCode = await cmdRewire(rest);
+      break;
     case "ui":
       await cmdUi(rest);
       break;
@@ -62,7 +66,7 @@ try {
       break;
     default:
       fail(
-        `unknown command ${command ?? "(none)"}. Try: bb plan --tunnel <url>, bb apply, bb verify, bb login google, bb status`,
+        `unknown command ${command ?? "(none)"}. Try: bb rewire --tunnel <url>, bb plan --tunnel <url>, bb apply, bb verify, bb login google, bb status`,
       );
   }
 } catch (e) {

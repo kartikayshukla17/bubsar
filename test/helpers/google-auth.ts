@@ -53,10 +53,13 @@ export type AuthStub = {
 };
 
 export async function authStub(
-  answer: (redirectUri: string, nth: number) => string | Omit<Fixture, "expect">,
+  answer: (
+    redirectUri: string,
+    nth: number,
+  ) => string | Omit<Fixture, "expect"> | Promise<string | Omit<Fixture, "expect">>,
 ): Promise<AuthStub> {
   const requests: Seen[] = [];
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const u = new URL(req.url ?? "/", "http://stub");
     const query = Object.fromEntries(u.searchParams);
     requests.push({ method: req.method ?? "", path: u.pathname, query, headers: req.headers });
@@ -66,7 +69,7 @@ export async function authStub(
     }
     const uri = query.redirect_uri ?? "";
     const nth = requests.filter((r) => r.query.redirect_uri === uri).length - 1;
-    const picked = answer(uri, nth);
+    const picked = await answer(uri, nth);
     const f = typeof picked === "string" ? fixture(picked) : picked;
     res.writeHead(f.status, f.headers).end(f.body);
   });

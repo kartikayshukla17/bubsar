@@ -55,12 +55,16 @@ describe("plan", () => {
   });
 
   it.each([
-    ["not a URL", "abcd.ngrok-free.app"],
-    ["plain http", "http://abcd.ngrok-free.app"],
-    ["has a path", "https://abcd.ngrok-free.app/app"],
-  ])("refuses a tunnel that is %s", (_, tunnel) => {
+    ["abcd.ngrok-free.app", "it isn't a URL"],
+    ["http://abcd.ngrok-free.app", "it isn't https"],
+    ["https://abcd.ngrok-free.app/app", "it has a path (/app)"],
+    ["https://abcd.ngrok-free.app/?x=1", "it has a query (?x=1)"],
+    ["https://abcd.ngrok-free.app/#top", "it has a fragment (#top)"],
+  ])("refuses %s and says why", (tunnel, why) => {
     expect(() => plan(config, { "tunnel.url": tunnel })).toThrow(
-      `--tunnel ${tunnel}: expected an https origin like https://abcd.ngrok-free.app`,
+      new Error(
+        `--tunnel ${tunnel}: expected an https origin like https://abcd.ngrok-free.app, but ${why}`,
+      ),
     );
   });
 

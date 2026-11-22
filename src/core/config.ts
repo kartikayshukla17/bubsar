@@ -124,7 +124,7 @@ function validate(doc: Table, text: string): Config {
       }
     }
   }
-  return doc as unknown as Config;
+  return { ...doc, values, destinations: asTable(doc.destinations) ?? {} } as unknown as Config;
 }
 
 /** Value ids a template like `{tunnel.url}/cb` refers to. */

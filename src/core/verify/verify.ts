@@ -1,4 +1,5 @@
 import type { Action, CheckMark, Step } from "../board";
+import { type ExitCode, exitCode } from "../exit";
 import type { Lists } from "../recipes/google/console";
 import type { Check, GoogleState, Planned } from "../state";
 import { type AuthAnswer, classify, type Verdict } from "./classify";
@@ -21,6 +22,7 @@ export type VerifyIO = {
 
 export type UriResult = {
   uri: string;
+  at: string;
   result: Check["result"];
   status: number | null;
   why: string;
@@ -28,11 +30,12 @@ export type UriResult = {
   note: string;
 };
 
-export type VerifyOutcome = { redirects: UriResult[]; origins: string[]; code: 0 | 3 };
-
-export function exitCode(results: Check["result"][]): 0 | 3 {
-  return results.every((r) => r === "accepted") ? 0 : 3;
-}
+export type VerifyOutcome = {
+  redirects: UriResult[];
+  origins: string[];
+  required: Check["result"][];
+  code: ExitCode;
+};
 
 export function targets(planned: Planned, owned: GoogleState["owned"]): Lists {
   const on = (k: keyof Lists) =>
@@ -82,18 +85,15 @@ export async function verifyGoogle(
     const step = steps.find((s) => isRedirect(s) && s.to === uri);
     if (step) io.emit({ type: "check", id: step.id, note: ASKING });
     let status: number | null = null;
+    let at = "";
     let waited = false;
     const { verdict } = await poll(
       async () => {
         const answer = await io.ask(uri);
         const v = classify(answer);
         status = answer.status;
-        io.record({
-          at: new Date(io.clock.now()).toISOString(),
-          uri,
-          result: v.result,
-          status,
-        });
+        at = new Date(io.clock.now()).toISOString();
+        io.record({ at, uri, result: v.result, status });
         return v;
       },
       deadline,
@@ -105,7 +105,7 @@ export async function verifyGoogle(
       },
     );
     const { mark, note } = concluded(uri, verdict);
-    redirects.push({ uri, result: verdict.result, status, why: verdict.why, mark, note });
+    redirects.push({ uri, at, result: verdict.result, status, why: verdict.why, mark, note });
     if (step) {
       io.emit({ type: "checked", id: step.id, mark, note });
       done.add(step.id);
@@ -124,9 +124,11 @@ export async function verifyGoogle(
     }
   }
   io.emit({ type: "verify-done" });
+  const required = [...redirects.map((r) => r.result), ...unchecked];
   return {
     redirects,
     origins: want.jsOrigins,
-    code: exitCode([...redirects.map((r) => r.result), ...unchecked]),
+    required,
+    code: exitCode({ ended: "finished", required }),
   };
 }

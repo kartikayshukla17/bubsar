@@ -25,6 +25,7 @@ export type Phase =
   | "applied"
   | "verifying"
   | "verified"
+  | "unverified"
   | "failed";
 
 /** Declared in busbar.toml, so plain strings. The demo fixture narrows them. */
@@ -177,8 +178,12 @@ export function reduce(s: BoardState, a: Action): BoardState {
       if (!step) return patch(s, a.id, { mark: "unknown", fresh: true });
       return patch(s, a.id, { mark: step.verify.mark, fresh: true, note: step.verify.note });
     }
-    case "verify-done":
-      return { ...s, phase: "verified" };
+    case "verify-done": {
+      const proven = s.steps.every((st) =>
+        ["verified", "unexercised"].includes(s.strips[st.id]?.mark),
+      );
+      return { ...s, phase: proven ? "verified" : "unverified" };
+    }
     case "focus":
       return { ...s, focus: a.value };
     case "reset":
@@ -188,4 +193,20 @@ export function reduce(s: BoardState, a: Action): BoardState {
 
 export function stepTouches(step: Step, value: ValueId) {
   return value === "tunnel.url" || (step.alsoWrites ?? []).includes(value);
+}
+
+type Snapshot = { run: string; seq: number; board: BoardState };
+
+/**
+ * The board's view after one streamed event, or null when it must fetch the snapshot again.
+ * The CLI writes the snapshot before it appends the event, so a snapshot can already hold
+ * events that arrive after it.
+ */
+export function follow<S extends Snapshot>(
+  cur: S | null,
+  e: { run: string; seq: number; action: Action },
+): S | null {
+  if (!cur || e.run !== cur.run || e.seq > cur.seq + 1) return null;
+  if (e.seq <= cur.seq) return cur;
+  return { ...cur, seq: e.seq, board: reduce(cur.board, e.action) };
 }

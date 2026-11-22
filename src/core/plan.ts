@@ -8,17 +8,20 @@ export const FLAGS: Record<string, string> = { "tunnel.url": "--tunnel" };
 
 /** A tunnel is an https origin: scheme and host, no path. A pasted trailing slash is dropped. */
 function origin(id: string, raw: string): string {
-  const flag = FLAGS[id] ?? id;
-  const bad = new Error(
-    `${flag} ${raw}: expected an https origin like https://abcd.ngrok-free.app`,
-  );
+  const bad = (why: string) =>
+    new Error(
+      `${FLAGS[id] ?? id} ${raw}: expected an https origin like https://abcd.ngrok-free.app, but ${why}`,
+    );
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw bad;
+    throw bad("it isn't a URL");
   }
-  if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) throw bad;
+  if (url.protocol !== "https:") throw bad("it isn't https");
+  if (url.pathname !== "/") throw bad(`it has a path (${url.pathname})`);
+  if (url.search) throw bad(`it has a query (${url.search})`);
+  if (url.hash) throw bad(`it has a fragment (${url.hash})`);
   return url.origin;
 }
 

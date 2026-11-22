@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialBoard, reduce, type Step } from "./board";
+import { follow, initialBoard, reduce, type Step } from "./board";
 
 const step = (id: string, over: Partial<Step> = {}): Step => ({
   id,
@@ -120,5 +120,57 @@ describe("handoff (BB-06)", () => {
       note,
     });
     expect(s.strips["google-origin-1"]).toEqual({ bay: "plan", mark: "planned", fresh: false });
+  });
+});
+
+describe("verify-done (BB-07)", () => {
+  const verified = (marks: Record<string, "verified" | "rejected" | "unknown" | "unexercised">) => {
+    const ids = Object.keys(marks);
+    let s = reduce(initialBoard(), { type: "plan", steps: ids.map((id) => step(id)) });
+    s = reduce(s, { type: "start" });
+    for (const id of ids) s = reduce(s, { type: "settle", id });
+    s = reduce(s, { type: "apply-done" });
+    s = reduce(s, { type: "verify-start" });
+    for (const id of ids) s = reduce(s, { type: "checked", id, mark: marks[id], note: "n" });
+    return reduce(s, { type: "verify-done" }).phase;
+  };
+
+  it("reads verified only when every strip was verified or is unexercised by design", () => {
+    expect(verified({ "google-redirect-1": "verified", "google-origin-1": "unexercised" })).toBe(
+      "verified",
+    );
+  });
+
+  it.each(["rejected", "unknown"] as const)("reads unverified when a strip is %s", (mark) => {
+    expect(verified({ "google-redirect-1": mark, "google-origin-1": "unexercised" })).toBe(
+      "unverified",
+    );
+  });
+});
+
+describe("follow: a board joining a run mid-stream (BB-07)", () => {
+  const snap = (seq: number, run = "r1") => ({
+    run,
+    seq,
+    board: reduce(initialBoard(), { type: "plan", steps: [step("google-redirect-1")] }),
+  });
+
+  it("applies the next event in order", () => {
+    const next = follow(snap(1), { run: "r1", seq: 2, action: { type: "start" } });
+    expect(next).toMatchObject({ run: "r1", seq: 2, board: { phase: "applying" } });
+  });
+
+  it("skips an event the snapshot already holds, without asking for it again", () => {
+    const cur = snap(3);
+    expect(follow(cur, { run: "r1", seq: 3, action: { type: "start" } })).toBe(cur);
+    expect(follow(cur, { run: "r1", seq: 1, action: { type: "start" } })).toBe(cur);
+  });
+
+  it.each([
+    ["a gap", snap(1), { run: "r1", seq: 3, action: { type: "start" } }],
+    ["another run", snap(1), { run: "r2", seq: 2, action: { type: "start" } }],
+    ["no snapshot yet", null, { run: "r1", seq: 2, action: { type: "start" } }],
+  ] as const)("asks for the snapshot again after %s", (_, cur, e) => {
+    expect(follow(cur, e)).toBeNull();
   });
 });

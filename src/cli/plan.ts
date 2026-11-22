@@ -3,20 +3,24 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import type { Action, Step } from "../core/board";
 import { driverFromEnv } from "../core/browser/driver";
-import { loadConfig } from "../core/config";
-import { diff, nextLists } from "../core/diff";
-import { withHandoff } from "../core/handoff";
+import { type Config, loadConfig } from "../core/config";
+import { type Diff, diff, nextLists } from "../core/diff";
+import { type Stopped, withHandoff } from "../core/handoff";
 import { desiredLists, plan, resolveValues } from "../core/plan";
 import {
-  clientUrl,
   type GoogleConsole,
   ReauthRequired,
   SelectorMissing,
 } from "../core/recipes/google/console";
 import { appendEvent, describe, ensureRunDir, RUN_DIR, type Run, startRun } from "../core/run";
-import { consoleOrigin } from "../core/session";
-import { googleState, readState, writeState } from "../core/state";
-import { DriverConsoles, googleProfile, recordSession, withConsoles } from "./google";
+import { googleState, type Planned, readState, writeState } from "../core/state";
+import {
+  DriverConsoles,
+  googleClientUrl,
+  googleProfile,
+  recordSession,
+  withConsoles,
+} from "./google";
 import { printDiff, printPlan } from "./print";
 
 /**
@@ -60,6 +64,53 @@ function failRun(
   for (const s of steps) appendEvent(projectDir, { type: "fail", id: s.id, note: reason });
 }
 
+export type Planning = { d: Diff; planned: Planned; steps: Step[] };
+
+export async function planGoogle(
+  cwd: string,
+  config: Config,
+  values: Record<string, string>,
+  consoles: DriverConsoles,
+  o: { adopt?: boolean; debug?: boolean } = {},
+): Promise<Planning | Stopped> {
+  const base = { project: config.project.name, ...describe(config, resolveValues(config, values)) };
+  const state = readState(cwd);
+  const gstate = googleState(state);
+  const unread = plan(config, values);
+  let handedOff = false;
+  const emit = (a: Action) => {
+    if (!handedOff) {
+      dropPlan(cwd);
+      startRun(cwd, base, { type: "plan", steps: unread });
+    }
+    handedOff = true;
+    appendEvent(cwd, a);
+  };
+  const out = await withHandoff(consoles, unread, emit, async (gc) => {
+    try {
+      return await gc.read();
+    } catch (e) {
+      // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
+      if (e instanceof SelectorMissing) {
+        dropPlan(cwd);
+        failRun(cwd, base, unread, e.message);
+      }
+      if (o.debug && !(e instanceof ReauthRequired)) await saveScreenshot(cwd, gc);
+      throw e;
+    }
+  });
+  if ("result" in out) return out;
+
+  const desired = desiredLists(config, values);
+  const d = diff(out, desired, gstate.owned, { adopt: o.adopt ?? false });
+  const planned = { values: resolveValues(config, values), desired, read: out, next: nextLists(d) };
+  writeState(cwd, { ...state, google: { ...gstate, planned } });
+  recordSession(cwd, "signed-in");
+  const steps = plan(config, values, d);
+  startRun(cwd, base, { type: "plan", steps });
+  return { d, planned, steps };
+}
+
 /** `bb plan --tunnel <url> [--adopt] [--debug]`. Exit code: 0, or 2 when you stopped at a handoff. */
 export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise<number> {
   const { values: flags } = parseArgs({
@@ -72,9 +123,15 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
   if (flags.tunnel !== undefined) values["tunnel.url"] = flags.tunnel;
   const base = { project: config.project.name, ...describe(config, resolveValues(config, values)) };
   const google = config.destinations.google;
-  const profile = google && googleProfile(cwd, config.project.name, driver);
+  if (!google) {
+    process.stdout.write(
+      "Nothing to plan: busbar.toml has no Google destination. Add a [destinations.google] table.\n",
+    );
+    return 0;
+  }
+  const profile = googleProfile(cwd, config.project.name, driver);
 
-  if (!google || !profile) {
+  if (!profile) {
     dropPlan(cwd);
     const steps = plan(config, values);
     startRun(cwd, base, { type: "plan", steps });
@@ -82,38 +139,9 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
     return 0;
   }
 
-  const state = readState(cwd);
-  const gstate = googleState(state);
-  const consoles = new DriverConsoles(
-    cwd,
-    driver,
-    profile,
-    clientUrl(consoleOrigin(), google.project_id, google.client_id),
-  );
-  const unread = plan(config, values);
-  let handedOff = false;
-  const emit = (a: Action) => {
-    if (!handedOff) {
-      dropPlan(cwd);
-      startRun(cwd, base, { type: "plan", steps: unread });
-    }
-    handedOff = true;
-    appendEvent(cwd, a);
-  };
+  const consoles = new DriverConsoles(cwd, driver, profile, googleClientUrl(google));
   const out = await withConsoles(consoles, () =>
-    withHandoff(consoles, unread, emit, async (gc) => {
-      try {
-        return await gc.read();
-      } catch (e) {
-        // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
-        if (e instanceof SelectorMissing) {
-          dropPlan(cwd);
-          failRun(cwd, base, unread, e.message);
-        }
-        if (flags.debug && !(e instanceof ReauthRequired)) await saveScreenshot(cwd, gc);
-        throw e;
-      }
-    }),
+    planGoogle(cwd, config, values, consoles, { adopt: flags.adopt, debug: flags.debug }),
   );
   if ("result" in out) {
     process.stderr.write(
@@ -121,14 +149,6 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
     );
     return 2;
   }
-  const read = out;
-
-  const desired = desiredLists(config, values);
-  const d = diff(read, desired, gstate.owned, { adopt: flags.adopt ?? false });
-  const planned = { values: resolveValues(config, values), desired, read, next: nextLists(d) };
-  writeState(cwd, { ...state, google: { ...gstate, planned } });
-  recordSession(cwd, "signed-in");
-  startRun(cwd, base, { type: "plan", steps: plan(config, values, d) });
-  process.stdout.write(printDiff(config, d, profile.browser.name));
+  process.stdout.write(printDiff(config, out.d, profile.browser.name));
   return 0;
 }

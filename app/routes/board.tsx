@@ -10,6 +10,7 @@ import {
   type Action,
   type BayId,
   type BoardState,
+  follow,
   initialBoard,
   layout,
   reduce,
@@ -72,6 +73,8 @@ function demoStatus(s: BoardState): Status {
         text: "4 verified, 1 listed but not exercised. Run bb verify --signin to prove Google sign-in.",
         live: false,
       };
+    case "unverified":
+      return { text: verifiedStatus(s), live: false };
     case "failed":
       return failedStatus(s);
   }
@@ -113,6 +116,7 @@ function liveStatus(s: BoardState): Status {
         live: false,
       };
     case "verified":
+    case "unverified":
       return { text: verifiedStatus(s), live: false };
     case "failed":
       return failedStatus(s);
@@ -129,7 +133,9 @@ function verifiedStatus(s: BoardState) {
   ]
     .filter(([n]) => n)
     .map(([n, what]) => `${n} ${what}`);
-  return said.length ? `Verify finished: ${said.join(", ")}.` : "Verify finished.";
+  const head = s.phase === "unverified" ? "Verify finished, not all verified" : "Verify finished";
+  const rerun = s.phase === "unverified" ? " Re-run bb verify later." : "";
+  return said.length ? `${head}: ${said.join(", ")}.${rerun}` : `${head}.${rerun}`;
 }
 
 function BoardView({
@@ -428,13 +434,10 @@ function LiveBoard() {
     events.addEventListener("session", (m) => setSessions(JSON.parse(m.data) as Sessions));
     events.onerror = () => setOffline(true);
     events.onmessage = (m) => {
-      const e = JSON.parse(m.data) as RunEvent;
       const cur = current.current;
-      if (cur && e.run === cur.run && e.seq === cur.seq + 1) {
-        show({ ...cur, seq: e.seq, board: reduce(cur.board, e.action) });
-      } else {
-        load();
-      }
+      const next = follow(cur, JSON.parse(m.data) as RunEvent);
+      if (next === null) load();
+      else if (next !== cur) show(next);
     };
     return () => {
       stopped = true;

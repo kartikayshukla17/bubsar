@@ -1,9 +1,11 @@
 import type { InstalledBrowser } from "../core/browser/browsers";
 import type { BrowserDriver } from "../core/browser/driver";
+import type { GoogleDecl } from "../core/config";
 import type { Consoles } from "../core/handoff";
-import { type GoogleConsole, PageGoogleConsole } from "../core/recipes/google/console";
+import { clientUrl, type GoogleConsole, PageGoogleConsole } from "../core/recipes/google/console";
 import { FakeGoogleConsole } from "../core/recipes/google/fake";
 import {
+  consoleOrigin,
   existingProfiles,
   readLocal,
   type Session,
@@ -45,6 +47,9 @@ export async function openGoogleConsole(
     ? new FakeGoogleConsole(env.BB_FAKE, page, url)
     : new PageGoogleConsole(page, { url });
 }
+
+export const googleClientUrl = (google: GoogleDecl) =>
+  clientUrl(consoleOrigin(), google.project_id, google.client_id);
 
 export function recordSession(projectDir: string, session: Session) {
   const local = readLocal(projectDir);
