@@ -1,11 +1,12 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { automationLaunchOptions } from "../src/core/browser/args";
 import { PuppeteerDriver } from "../src/core/browser/puppeteer";
-import { testBrowsers } from "./helpers/browser";
+import { skippedBrowsers, testBrowsers } from "./helpers/browser";
 
 // Installed Brave and Firefox (see helpers/browser.ts for why not Dia), headless, on a
 // throwaway profile, with the mock keychain so macOS never asks for Keychain access, and
@@ -30,6 +31,8 @@ afterAll(() => {
 });
 
 const driver = new PuppeteerDriver({ keychain: "mock", loopbackOnly: true });
+
+for (const why of skippedBrowsers) it.skip(why, () => {});
 
 describe.skipIf(testBrowsers.length === 0)("PuppeteerDriver", () => {
   describe.each(testBrowsers)("on $name", (browser) => {
@@ -60,6 +63,37 @@ describe.skipIf(testBrowsers.length === 0)("PuppeteerDriver", () => {
         expect(existsSync(join(profile, "compatibility.ini"))).toBe(true);
       }
     }, 30_000);
+
+    it.skipIf(browser.engine !== "firefox")(
+      "BiDi listens on loopback only, and nothing listens once the step has closed",
+      async () => {
+        const { default: puppeteer } = await import("puppeteer-core");
+        const profile = mkdtempSync(join(tmpdir(), "bb-profile-"));
+        const b = await puppeteer.launch(
+          automationLaunchOptions(browser, profile, {
+            headless: true,
+            keychain: "mock",
+            loopbackOnly: true,
+          }),
+        );
+        const endpoint = new URL(b.wsEndpoint());
+        const pid = b.process()?.pid ?? 0;
+        expect(["127.0.0.1", "localhost", "[::1]"]).toContain(endpoint.hostname);
+        expect(pid).toBeGreaterThan(0);
+        await b.close();
+        expect(() => process.kill(pid, 0)).toThrow();
+        const refused = await new Promise<string>((done) => {
+          const socket = connect(Number(endpoint.port), "127.0.0.1");
+          socket.once("connect", () => {
+            socket.destroy();
+            done("connected");
+          });
+          socket.once("error", (e: NodeJS.ErrnoException) => done(e.code ?? e.message));
+        });
+        expect(refused).toBe("ECONNREFUSED");
+      },
+      30_000,
+    );
 
     it.skipIf(browser.engine !== "firefox")(
       "leaves the profile's prefs as they were: no Puppeteer user.js, prefs.js untouched",

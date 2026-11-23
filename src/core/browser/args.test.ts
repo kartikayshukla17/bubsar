@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { automationLaunchOptions, plainLaunchArgs } from "./args";
+import { automationLaunchOptions, plainLaunchArgs, quitByPid } from "./args";
 import type { InstalledBrowser } from "./browsers";
 
 const brave: InstalledBrowser = {
@@ -55,6 +55,27 @@ describe("Firefox's plain window (sign-in and handoff) is an ordinary Firefox on
     const args = plainLaunchArgs(firefox, FF_PROFILE, challenge);
     expect(args).toEqual(["-profile", FF_PROFILE, "-no-remote", challenge]);
     expect(args.join(" ")).not.toMatch(/remote-debugging|marionette|headless|user_pref|prefs/i);
+  });
+});
+
+describe("quitByPid: the plain Firefox window is asked to quit, by its own pid only", () => {
+  it("asks AppKit to terminate exactly that process, and names no app or bundle id", () => {
+    const [cmd, args] = quitByPid(4242);
+    expect(cmd).toBe("/usr/bin/osascript");
+    expect(args).toEqual([
+      "-l",
+      "JavaScript",
+      "-e",
+      "ObjC.import('AppKit'); $.NSRunningApplication.runningApplicationWithProcessIdentifier(4242).terminate",
+    ]);
+    expect(args.join(" ")).not.toMatch(
+      /firefox|org\.mozilla|Application\(|tell application|bundleIdentifier|killall/i,
+    );
+  });
+
+  it("refuses anything but a positive whole pid, so nothing else reaches the script", () => {
+    for (const pid of [0, -1, 1.5, Number.NaN])
+      expect(() => quitByPid(pid)).toThrow(`not a process id: ${pid}`);
   });
 });
 

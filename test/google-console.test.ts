@@ -12,7 +12,7 @@ import {
   SelectorMissing,
 } from "../src/core/recipes/google/console";
 import { AFTER_SAVE, SELECTORS, type SelectorName } from "../src/core/recipes/google/selectors";
-import { testBrowsers } from "./helpers/browser";
+import { skippedBrowsers, testBrowsers } from "./helpers/browser";
 import { STAND_IN, type StandIn, standInConsole } from "./helpers/google-console";
 
 // The Google recipe against the hand-built stand-in client page (test/fixtures/google-console),
@@ -21,6 +21,8 @@ import { STAND_IN, type StandIn, standInConsole } from "./helpers/google-console
 
 let standIn: StandIn;
 let page: Page;
+
+for (const why of skippedBrowsers) it.skip(why, () => {});
 
 describe.skipIf(testBrowsers.length === 0)("Google recipe vs the stand-in", () => {
   describe.each(testBrowsers)("on $name", (browser) => {

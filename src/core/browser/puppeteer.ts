@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import type { Browser, ElementHandle, Page as PuppeteerTab } from "puppeteer-core";
-import { automationLaunchOptions, plainLaunchArgs } from "./args";
+import { automationLaunchOptions, plainLaunchArgs, quitByPid } from "./args";
 import { applicationRoots, detectBrowsers, type InstalledBrowser } from "./browsers";
 import type { BrowserDriver, Page, PlainEnd } from "./driver";
 import { untilEnter } from "./enter";
@@ -40,9 +40,18 @@ export class PuppeteerDriver implements BrowserDriver {
       // macOS keeps an app running after its last window closes, so Enter is the usual way
       // out. Quitting the browser (Cmd-Q) ends the wait too.
       const end = await Promise.race([untilEnter(signal), exited, failed]);
-      if (child.exitCode === null && child.signalCode === null) {
-        // Chromium shuts down cleanly on SIGTERM. Firefox dies on it, and the OS releases its
-        // profile lock either way.
+      const running = () => child.exitCode === null && child.signalCode === null;
+      if (running() && browser.engine === "firefox" && child.pid) {
+        const [cmd, args] = quitByPid(child.pid);
+        await new Promise((done) => execFile(cmd, args, { timeout: 5000 }, done));
+        let wait: NodeJS.Timeout | undefined;
+        await Promise.race([
+          exited,
+          new Promise((done) => (wait = setTimeout(done, QUIT_GRACE_MS))),
+        ]);
+        clearTimeout(wait);
+      }
+      if (running()) {
         child.kill("SIGTERM");
         const force = setTimeout(() => child.kill("SIGKILL"), QUIT_GRACE_MS);
         await exited;

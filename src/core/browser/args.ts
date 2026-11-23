@@ -43,7 +43,6 @@ const LOOPBACK_ONLY_FIREFOX = {
   "network.proxy.socks_port": 9,
   "network.proxy.socks_remote_dns": true,
   "network.proxy.no_proxies_on": "",
-  // every host name resolves to localhost, so no lookup leaves the machine
   "network.dns.native-is-localhost": true,
   "network.trr.mode": 5,
   "doh-rollout.disable-heuristics": true,
@@ -117,4 +116,21 @@ export function automationLaunchOptions(
       o.keychain === "real" ? ["--use-mock-keychain", "--password-store=basic"] : [],
     args: o.loopbackOnly ? [...LOOPBACK_ONLY] : [],
   };
+}
+
+/**
+ * A clean quit of one plain Firefox process, which dies on SIGTERM. Scoped to the pid:
+ * quitting by app name or bundle id would also quit your everyday Firefox.
+ */
+export function quitByPid(pid: number): [string, string[]] {
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error(`not a process id: ${pid}`);
+  return [
+    "/usr/bin/osascript",
+    [
+      "-l",
+      "JavaScript",
+      "-e",
+      `ObjC.import('AppKit'); $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid}).terminate`,
+    ],
+  ];
 }

@@ -83,15 +83,23 @@ probe. Nothing went to Google.
   second launch backed up that leftover file and "restored" it, so it never went away. The
   plain sign-in window would have loaded those prefs. The session itself wasn't broken: the
   cookie survived.
-  - Fix: `src/core/browser/firefox.ts` snapshots `user.js` and `prefs.js` before each
-    automated launch and puts them back exactly after the browser exits, removing any
-    `*.puppeteer` backups. A seam-2 test checks this.
+  - Fix: `src/core/browser/firefox.ts`. busbar profiles never hold a `user.js` of their own,
+    so any `user.js` is deleted before and after each automated step. `prefs.js` is
+    snapshotted before the launch and written back atomically (temp file, then rename)
+    after it. A `prefs.js.puppeteer` left by a step that never finished (Ctrl-C, a crash) is
+    the last clean copy, so it becomes the baseline. Unit tests cover the crash leftover, an
+    existing `user.js` and a fresh profile; a seam-2 test covers a real step.
 - **Minimise works over BiDi.** `setWindowBounds(windowId, { windowState: "minimized" })`
   succeeded headless. The headed check itself is pending (check 3 below).
 - **A plain Firefox dies on SIGTERM.** It exited in 33ms, killed by the signal, so it
-  doesn't quit cleanly the way Chromium does. The OS releases its profile lock either way,
-  and cookies are committed to SQLite as they're set. Whether a sign-in survives an
-  immediate Enter is check 2 below.
+  doesn't quit cleanly the way Chromium does. The OS releases its profile lock either way.
+  A kill can lose cookies written in the last moment, and session-only cookies, and it
+  leaves crashed-session state. So busbar now asks the plain Firefox to quit cleanly by its
+  own pid (`osascript -l JavaScript`, `NSRunningApplication
+  runningApplicationWithProcessIdentifier(<pid>).terminate`), never by app name or bundle
+  id, which could quit your everyday Firefox. It waits for the exit, and only then falls
+  back to SIGTERM and SIGKILL. This quit path hasn't run against a real window yet. Whether
+  a sign-in survives an immediate Enter is check 2 below.
 
 ### Tests added
 
@@ -108,12 +116,21 @@ probe. Nothing went to Google.
   each as its own browser on the Firefox engine.
 - **Seam 3**, `test/status.test.ts`: a fake Firefox logs in, and `bb status` prints the
   protection line exactly, without the Keychain line.
+- **Seam 4**, `quitByPid`: the clean-quit command targets the exact pid, names no app or
+  bundle id, and refuses anything but a positive whole pid.
+- **Seam 1**, `src/core/browser/firefox.test.ts`: a profile left by a crash mid-step (a
+  leftover `user.js`, a contaminated `prefs.js`, a `prefs.js.puppeteer`) comes back clean;
+  an existing `user.js` is removed; a fresh profile ends with no pref files.
+- **Seam 1**, `test/helpers/browser.test.ts`: which browsers seam 2 may launch (below).
 - **Seam 2**, `test/puppeteer.test.ts` and `test/google-console.test.ts`: both now run on
-  every installed test browser (`testBrowsers`: Brave, plus Firefox when installed). The 22
+  every test browser (`testBrowsers`: Brave, plus Firefox under the opt-in below). The 22
   recipe-vs-stand-in tests (read, layout drift, sign-in bounce, write, read-back, banners,
   `fill` vs the framework model, screenshot) pass on Firefox with no change to the recipe.
-  There's one new Firefox-only driver test: after an automated step, the profile has no
-  `user.js`, no `*.puppeteer` file, and `prefs.js` byte-identical to before.
+  There are two new Firefox-only tests:
+  - After an automated step, the profile has no `user.js`, no `*.puppeteer` file, and a
+    `prefs.js` byte-identical to before.
+  - The BiDi endpoint's host is loopback. After `close()` the process is gone and the port
+    refuses connections.
 
 ### Decisions
 
@@ -121,7 +138,16 @@ probe. Nothing went to Google.
   differences (protocol, launch, prefs cleanup) are in the adapter.
 - **`keychain` is ignored for Firefox.** The test asserts that, rather than the type
   splitting.
-- **Tests use Firefox too.** With the `loopbackOnly` prefs (a dead proxy at 127.0.0.1:9 for
+- **Tests launch Firefox only when asked, and never a quarantined bundle.** Firefox is in
+  seam 2 only with `BB_TEST_FIREFOX=1`, and even then it's skipped while
+  `Firefox.app` carries a `com.apple.quarantine` xattr. Homebrew sets that flag, and the
+  first exec of a quarantined bundle is what started Gatekeeper's own Firefox while this was
+  built. A brew upgrade, a reinstall or another Mac makes the next run a first exec again.
+  The skip shows as a named skipped test that says why. Opening the app by hand doesn't
+  remove the xattr: Gatekeeper accepted this machine's copy and the flag is still set. So
+  the opt-in also needs `xattr -d com.apple.quarantine /Applications/Firefox.app`, once
+  you've opened it yourself.
+- **Firefox's network in tests.** With the `loopbackOnly` prefs (a dead proxy at 127.0.0.1:9 for
   http/ssl/socks, `network.dns.native-is-localhost`, DoH off, captive portal and
   connectivity checks off, telemetry, normandy, push, update and system add-on update off,
   OCSP and the remote-settings CRLite/intermediates off), lsof probes during every Firefox
@@ -139,14 +165,22 @@ The spike's Google steps (1 and 2) and the whole loop on Firefox need Kartikay, 
 account and the sandbox client. Run them in a project with `[destinations.google]` pointing
 at the sandbox client.
 
+0. **Open Firefox once by hand first.** Launch `/Applications/Firefox.app` from Finder,
+   answer Gatekeeper's prompt if it shows, then quit it. Do this before any busbar command
+   or `BB_TEST_FIREFOX=1` test run, so neither is the bundle's first launch.
+
 1. **Sign-in isn't blocked (spike 1).** `bb logout google`, then
    `bb login google --browser firefox`. A Firefox window opens on
    `~/Library/Application Support/busbar/profiles/<project>/firefox`. Sign in, wait for the
    Cloud console, press Enter. Expect `google: signed in · Firefox`. Note any "browser not
    secure" or similar page. If Google blocks it, Firefox drops to plain-window steps only and
    this ticket comes back for a decision.
-2. **Sign-in survives an immediate Enter (SIGTERM).** Repeat step 1, but press Enter the
-   moment the console shows. Then `bb status` should still say signed in.
+2. **Sign-in survives an immediate Enter (the pid-scoped clean quit).** Repeat step 1, but
+   press Enter the moment the console shows. busbar's Firefox window should close on its
+   own within a second or two: no "restore session" prompt next time, and your everyday
+   Firefox untouched if it's running. Then `bb status` should still say signed in. If macOS
+   asks whether osascript may control Firefox, note it: the clean quit then needs that
+   consent, and otherwise falls back to SIGTERM after 10s.
 3. **The automated profile opens the console signed in (spike 2), minimised.**
    `bb status`. Expect `signed in · Firefox`, with the Firefox protection line. Watch
    that the check window goes straight to the Dock and doesn't flash full size.
