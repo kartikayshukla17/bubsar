@@ -25,17 +25,10 @@ const WORST_FIRST: Mark[] = [
 
 const worst = (marks: Mark[]): Mark => WORST_FIRST.find((m) => marks.includes(m)) ?? "unknown";
 
-/**
- * State of the route value → destination, as the sector map draws it. A tunnel route is the
- * worst of its strips there; a strip unexercised by design (a JS origin) only counts when
- * every strip is, as in verify-done.
- */
+/** State of the route value → destination, as the sector map draws it: the worst of its strips there. */
 export function routeMark(s: BoardState, value: Value, dest: DestinationId): Mark {
-  if (value.id === "tunnel.url") {
-    const marks = s.steps.filter((x) => x.destination === dest).map((x) => s.strips[x.id].mark);
-    const exercised = marks.filter((m) => m !== "unexercised");
-    return worst(exercised.length ? exercised : marks);
-  }
+  if (value.id === "tunnel.url")
+    return worst(s.steps.filter((x) => x.destination === dest).map((x) => s.strips[x.id].mark));
   if (value.id === "WHATSAPP_VERIFY_TOKEN" && dest === "meta") {
     const m = s.strips.meta.mark;
     return m === "drift" || m === "planned" ? "verified" : m;

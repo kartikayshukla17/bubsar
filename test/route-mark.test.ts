@@ -47,8 +47,8 @@ describe("the Google route's mark on the sector map and ledger", () => {
     expect(routeMark(s, tunnel, "google")).toBe("rejected");
   });
 
-  it("reads verified when the redirect URI was verified and the JS origin is unexercised by design", () => {
+  it("reads not exercised when the redirect URI was verified but the JS origin wasn't exercised", () => {
     const s = checked({ "google-redirect-1": "verified", "google-origin-1": "unexercised" });
-    expect(routeMark(s, tunnel, "google")).toBe("verified");
+    expect(routeMark(s, tunnel, "google")).toBe("unexercised");
   });
 });
