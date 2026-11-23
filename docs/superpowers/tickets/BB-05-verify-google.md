@@ -175,6 +175,8 @@ Where a test passed on its first run, a mutation proved it. The task report list
 
 ### Real-world checks pending
 
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
+
 The fixtures are **provisional and hand-written**. No request was sent to Google to make
 them. These checks need Kartikay, the sandbox OAuth client and a real network:
 

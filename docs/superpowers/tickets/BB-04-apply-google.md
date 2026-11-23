@@ -148,6 +148,8 @@ below pass.
 
 ### Real-world checks pending
 
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
+
 These need Kartikay, the sandbox OAuth client and busbar's Brave profile. Run BB-03's
 checks 1 to 3 first, so the read selectors are recorded against the live page.
 

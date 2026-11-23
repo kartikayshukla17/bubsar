@@ -107,7 +107,8 @@ in headless Brave and against the fake world; **nothing here has touched the rea
   run `bb login google` (no browser); the full table; state.json `planned` / run steps /
   session record / deep link / client untouched; keep + likely stale; `--adopt`; nothing to
   change; missing selector (exit 1, nothing written); expired session and console bounce
-  (exit 1, "session expired; run `bb login google`", local.json → signed-out); `--debug`
+  (exit 1, "session expired; run `bb login google`", local.json → signed-out; superseded by
+  BB-06, which hands the sign-in to you and exits 2 if you stop there); `--debug`
   screenshot (`.busbar/debug/` `0700`, file `0600`, warning); uninstalled browser; malformed
   `owned` refused before any browser; a plan after logout drops the earlier read plan.
 
@@ -144,6 +145,8 @@ in headless Brave and against the fake world; **nothing here has touched the rea
   "Planned from the console" row.
 
 ### Real-world checks pending
+
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
 
 Needs Kartikay, the sandbox OAuth client and busbar's Brave profile. Set
 `P="$HOME/Library/Application Support/busbar/profiles/<project.name>/brave"`,
@@ -194,10 +197,9 @@ Needs Kartikay, the sandbox OAuth client and busbar's Brave profile. Set
    `*.googleusercontent.com`), and every remote in `/tmp/bb-net.txt` must reverse-resolve
    (`dig -x <ip> +short`) to Google. Record any Brave-owned host (updates, safe browsing):
    that is the browser's own traffic, not busbar's, and the README should say so.
-9. **Expired session.** In a plain busbar window, sign out of Google
-   (`"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" --user-data-dir="$P"`,
-   then avatar → Sign out, then Cmd-Q). `bb plan --tunnel <same>` must print
-   "session expired; run `bb login google`", exit 1, and `bb status` must say signed out.
+9. **Expired session: superseded by BB-06. Skip it.** `bb plan` no longer fails with
+   "session expired; run `bb login google`". Since BB-06 it hands the sign-in to you in a
+   plain window, and BB-06's checks 1 and 2 cover that path.
 10. **Dia.** Automated tests launch Brave only (BB-02: Dia's own networking ignores the
     loopback flags). Run `bb login google --browser dia`, then steps 4 and 7 in Dia.
 

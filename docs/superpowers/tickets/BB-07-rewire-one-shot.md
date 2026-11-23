@@ -158,6 +158,8 @@ so the browser closes before it. Exit codes go through one pure function, shared
 
 ### Real-world checks pending
 
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
+
 1. **The full loop against the sandbox client (acceptance 1).** In a project logged in
    with `bb login google`, with `bb verify` having worked once for the current tunnel:
    1. Start a new ngrok tunnel so the URL rotates.

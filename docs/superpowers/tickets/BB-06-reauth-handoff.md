@@ -142,6 +142,8 @@ stay open.
 
 ### Real-world checks pending
 
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
+
 1. **Manual handoff on apply (acceptance 1).** In a project logged in with
    `bb login google` against the sandbox OAuth client:
    1. Run `bb plan --tunnel https://<new>.ngrok-free.app`.

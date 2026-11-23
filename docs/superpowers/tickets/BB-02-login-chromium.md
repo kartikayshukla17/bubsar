@@ -104,8 +104,9 @@ above are the ones tests proved. The rest need Kartikay at a browser, listed at 
 - `test/daemon.test.ts` (seam 3): `GET /api/session`, and a `session` SSE event within 1s
   of a login in another terminal.
 - `test/puppeteer.test.ts` (seam 2): `PuppeteerDriver` attaches headless to a temp profile
-  on installed Brave (Dia if no Brave) with `keychain: "mock"` and `loopbackOnly`, drives a
-  loopback page through every `Page` op, closes, and leaves the profile unlocked.
+  on installed Brave with `keychain: "mock"` and `loopbackOnly`, drives a loopback page
+  through every `Page` op, closes, and leaves the profile unlocked. Tests never launch Dia
+  (see the decision below).
 
 **Decisions made here:**
 - `openPlain` resolves on Enter in the terminal or the browser process exiting, then sends
@@ -136,8 +137,9 @@ above are the ones tests proved. The rest need Kartikay at a browser, listed at 
   With it, an lsof probe of Brave's process tree saw loopback only (12s probe, and 13
   samples during the real smoke test). **Dia under the same flags kept six connections open
   to Google Cloud and AWS hosts**: its own app networking ignores Chromium's flags. So tests
-  never launch Dia: `test/helpers/browser.ts` exports `testBrowser` (Brave or undefined).
-  BB-03+ recipe tests use it with
+  never launch Dia. `test/helpers/browser.ts` exports `testBrowsers`, chosen by
+  `pickTestBrowsers`: Brave always, Dia never, and Firefox only with `BB_TEST_FIREFOX=1` and
+  an unquarantined bundle (BB-08). Recipe tests use them with
   `new PuppeteerDriver({ keychain: "mock", loopbackOnly: true })`.
 - `/api/session` serves `local.json` plus `browserName`, so the SPA doesn't import
   `browsers.ts` (which uses `node:fs`). The board shows `Google · Brave · signed in`,
@@ -146,6 +148,8 @@ above are the ones tests proved. The rest need Kartikay at a browser, listed at 
   with no profile don't pay for it.
 
 ### Real-world checks pending
+
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
 
 Run these in a scratch project, never in a real one:
 `mkdir -p ~/bb-spike && cd ~/bb-spike && printf '[project]\nname = "spike"\n' > busbar.toml`.

@@ -132,6 +132,12 @@ probe. Nothing went to Google.
   - The BiDi endpoint's host is loopback. After `close()` the process is gone and the port
     refuses connections.
 
+  **Neither has ever run on real Firefox here.** They came with the quarantine rule below,
+  and this machine's Firefox keeps its `com.apple.quarantine` flag, so seam 2 skips it. The
+  recipe-vs-stand-in run above was before that rule. Running them is step G1 of
+  [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md), after Kartikay decides about the
+  flag. `quitByPid` has also never run against a real Firefox (step G3).
+
 ### Decisions
 
 - **selectors.ts is unchanged.** No selector needed a fork. All the driver-level
@@ -153,13 +159,16 @@ probe. Nothing went to Google.
   OCSP and the remote-settings CRLite/intermediates off), lsof probes during every Firefox
   seam-2 run showed loopback connections only. Dia stays excluded.
 - **Detected:** Firefox, Firefox Developer Edition (`firefox-dev`), Firefox Nightly
-  (`firefox-nightly`). Developer Edition and Nightly are labelled untested. Firefox counts as
-  tested because the seam-2 suite runs on it here. Forks (LibreWolf, Zen) aren't detected:
+  (`firefox-nightly`). Developer Edition and Nightly are labelled untested. Firefox is
+  labelled "partly tested on this machine": the recipe and driver tests ran on it once, and
+  the two Firefox-only tests never have (final review fix M7). Forks (LibreWolf, Zen) aren't detected:
   their bundle paths can't be checked on this machine and they ship their own pref
   defaults, so naming them would claim more than was checked.
 - **`bb login google`** now offers every detected browser, Firefox included.
 
 ### Real-world checks pending
+
+Run these as part of the one ordered session in [REAL-WORLD-CHECKLIST.md](../REAL-WORLD-CHECKLIST.md). It sets the order and the setup, and this list keeps the detail.
 
 The spike's Google steps (1 and 2) and the whole loop on Firefox need Kartikay, his Google
 account and the sandbox client. Run them in a project with `[destinations.google]` pointing
