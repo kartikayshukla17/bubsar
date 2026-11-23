@@ -16,6 +16,7 @@ import { googleState, readState } from "../core/state";
 import { targets } from "../core/verify/verify";
 import { applyGoogle } from "./apply";
 import { DriverConsoles, googleClientUrl, googleProfile, withConsoles } from "./google";
+import { lockProject } from "./lock";
 import { planGoogle } from "./plan";
 import { printDiff, printRewired } from "./print";
 import { checkGoogle, waitSeconds } from "./verify";
@@ -61,7 +62,7 @@ const wiredEnding = (latest: ReturnType<typeof latestChecks>): Ending => ({
 
 const savedLine = (o: ApplyOutcome) =>
   o.result === "landed"
-    ? "Google already holds exactly the planned lists: an earlier Save landed. busbar recorded its entries and wrote nothing.\n"
+    ? "Google already holds exactly the planned lists. busbar wrote nothing, and recorded the entries it planned to add as its own.\n"
     : "Saved. Google's lists read back exactly as planned.\n";
 
 /** `bb rewire --tunnel <url> [--yes] [--wait <seconds>]`: plan, confirm, apply and verify. */
@@ -77,6 +78,7 @@ export async function cmdRewire(argv: string[], driver = driverFromEnv()): Promi
     config,
     flags.tunnel === undefined ? {} : { "tunnel.url": flags.tunnel },
   );
+  lockProject(cwd);
   const again = `bb rewire --tunnel ${values["tunnel.url"]}`;
   const google = config.destinations.google;
   if (!google) {

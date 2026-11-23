@@ -430,7 +430,6 @@ function LiveBoard() {
       load(); // resync after a reconnect
       loadSessions();
     };
-    // bb login / status / logout in another terminal.
     events.addEventListener("session", (m) => setSessions(JSON.parse(m.data) as Sessions));
     events.onerror = () => setOffline(true);
     events.onmessage = (m) => {

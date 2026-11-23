@@ -178,15 +178,14 @@ describe("bb verify after bb apply", () => {
 });
 
 describe("bb verify with nothing it can check", () => {
-  it("before any plan has read the client: says so plainly, asks nothing, exits 0", async () => {
+  it("before any plan has read the client: says nothing was checked, asks nothing, exits 3", async () => {
     const p = signedIn(client, owned);
     stub = await authStub(() => "accepted-signin-identifier");
     const r = await p.bbAsync(["verify"], { BB_GOOGLE_AUTH_URL: stub.url });
     expect(r).toEqual({
-      code: 0,
+      code: 3,
       stderr: "",
-      stdout:
-        "Nothing to verify: busbar hasn't read this client yet. Run `bb plan --tunnel <url>`, then `bb apply`.\n",
+      stdout: "busbar hasn't read Google yet. Run bb plan, then bb apply.\n",
     });
     expect(stub.requests).toEqual([]);
   });

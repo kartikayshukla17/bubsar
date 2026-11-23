@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { Lists } from "./recipes/google/console";
 import { ensureRunDir, RUN_DIR, writeAtomic } from "./run";
 
-/** One functional check of a redirect URI (BB-05). */
 export type Check = {
   at: string;
   uri: string;
@@ -54,7 +53,6 @@ export function readState(projectDir: string): State {
   return state;
 }
 
-/** The Google section with defaults filled in. */
 export function googleState(state: State): GoogleState {
   return {
     owned: state.google?.owned ?? empty(),

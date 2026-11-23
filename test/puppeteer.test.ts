@@ -64,6 +64,19 @@ describe.skipIf(testBrowsers.length === 0)("PuppeteerDriver", () => {
       }
     }, 30_000);
 
+    it("kill() ends the automated browser at once: its page can't load anything after", async () => {
+      const page = await driver.attach(browser, mkdtempSync(join(tmpdir(), "bb-profile-")), {
+        headless: true,
+      });
+      try {
+        await page.goto(`${origin}/client`);
+        page.kill();
+        await expect(page.goto(`${origin}/again`)).rejects.toThrow();
+      } finally {
+        await page.close().catch(() => {});
+      }
+    }, 30_000);
+
     it.skipIf(browser.engine !== "firefox")(
       "BiDi listens on loopback only, and nothing listens once the step has closed",
       async () => {
@@ -76,14 +89,20 @@ describe.skipIf(testBrowsers.length === 0)("PuppeteerDriver", () => {
             loopbackOnly: true,
           }),
         );
-        const endpoint = new URL(b.wsEndpoint());
-        const pid = b.process()?.pid ?? 0;
-        expect(["127.0.0.1", "localhost", "[::1]"]).toContain(endpoint.hostname);
-        expect(pid).toBeGreaterThan(0);
-        await b.close();
+        let endpoint: URL;
+        let pid: number;
+        try {
+          endpoint = new URL(b.wsEndpoint());
+          pid = b.process()?.pid ?? 0;
+          expect(["127.0.0.1", "localhost", "[::1]"]).toContain(endpoint.hostname);
+          expect(pid).toBeGreaterThan(0);
+        } finally {
+          await b.close();
+        }
         expect(() => process.kill(pid, 0)).toThrow();
+        const host = endpoint.hostname.replace(/^\[|\]$/g, "");
         const refused = await new Promise<string>((done) => {
-          const socket = connect(Number(endpoint.port), "127.0.0.1");
+          const socket = connect(Number(endpoint.port), host);
           socket.once("connect", () => {
             socket.destroy();
             done("connected");

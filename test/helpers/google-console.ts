@@ -38,6 +38,8 @@ export type StandIn = {
     saveDelayMs: number;
     banner: { status?: string; alert?: string } | null;
     savingText: string | null;
+    /** Renders a link (`#bb-route`) that changes route in-app to `path` and shows `lists`, as the console's SPA does. */
+    route: { path: string; lists: Lists } | null;
     /** Text replacements over the served page: drift the DOM without editing the fixture. */
     rewrite: [string, string][];
   };
@@ -81,6 +83,7 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
       saveDelayMs: 0,
       banner: null,
       savingText: null,
+      route: null,
       rewrite: [],
     },
     requests: [],
@@ -118,6 +121,7 @@ export async function standInConsole(init: Partial<Lists> = {}): Promise<StandIn
       accountsOrigin: accounts.origin,
       banner: s.set.banner,
       savingText: s.set.savingText,
+      route: s.set.route,
     };
     const data = JSON.stringify(state).replace(/</g, "\\u003c");
     let html = PAGE.replace(`${STATE_TAG}${PLACEHOLDER}`, () => `${STATE_TAG}${data}`);

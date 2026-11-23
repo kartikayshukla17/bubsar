@@ -13,6 +13,7 @@ import {
   signInUrl,
   writeLocal,
 } from "../core/session";
+import { lockProject } from "./lock";
 
 const nameOf = (id: string) => KNOWN.find((k) => k.id === id)?.name ?? id;
 
@@ -62,7 +63,6 @@ const checking = (b: InstalledBrowser) =>
     ? "Checking the session: loading the Cloud console in busbar's profile, headless …"
     : `Checking the session: a minimized ${b.name} window loads the Cloud console, then quits …`;
 
-/** `bb login google [--browser <id>]` */
 export async function cmdLogin(argv: string[], driver: BrowserDriver = driverFromEnv()) {
   const { values: flags } = parseArgs({
     args: provider(argv, "login"),
@@ -70,6 +70,7 @@ export async function cmdLogin(argv: string[], driver: BrowserDriver = driverFro
   });
   const cwd = process.cwd();
   const config = loadConfig(cwd);
+  lockProject(cwd);
   const { browser, why } = pickBrowser(
     driver.detect(),
     flags.browser,
@@ -126,7 +127,6 @@ export async function cmdLogin(argv: string[], driver: BrowserDriver = driverFro
   out(`google: signed in · ${browser.name}`);
 }
 
-/** `bb status`: per provider, signed in / signed out / never logged in, checked live. */
 export async function cmdStatus(driver: BrowserDriver = driverFromEnv()) {
   const cwd = process.cwd();
   const config = loadConfig(cwd);
@@ -187,6 +187,7 @@ export function cmdLogout(argv: string[]) {
   provider(argv, "logout");
   const cwd = process.cwd();
   const project = loadConfig(cwd).project.name;
+  lockProject(cwd);
   const { google, ...rest } = readLocal(cwd);
   const profiles = existingProfiles(project);
   for (const p of profiles) rmSync(p.dir, { recursive: true, force: true });

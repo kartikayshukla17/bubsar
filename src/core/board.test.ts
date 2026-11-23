@@ -141,6 +141,10 @@ describe("verify-done (BB-07)", () => {
     );
   });
 
+  it("reads unverified when the run has no strips: nothing was checked", () => {
+    expect(verified({})).toBe("unverified");
+  });
+
   it.each(["rejected", "unknown"] as const)("reads unverified when a strip is %s", (mark) => {
     expect(verified({ "google-redirect-1": mark, "google-origin-1": "unexercised" })).toBe(
       "unverified",

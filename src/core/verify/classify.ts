@@ -56,9 +56,9 @@ export function classify(a: AuthAnswer): Verdict {
   if (code === MISMATCH || a.body.includes(MISMATCH) || a.location?.includes(MISMATCH))
     return { result: "rejected", why: `Google answered ${MISMATCH}` };
   if (redirect && to?.protocol === "https:" && to.hostname === ACCOUNTS_HOST) {
+    if (code) return { result: "unknown", why: `Google answered ${code}` };
     if (SIGN_IN_PATHS.includes(to.pathname))
       return { result: "accepted", why: "Google sent the request on to sign-in" };
-    if (code) return { result: "unknown", why: `Google answered ${code}` };
   }
   if (a.status === 429) return { result: "unknown", why: "Google rate-limited the check" };
   if (to?.pathname.startsWith("/sorry/") || /unusual traffic|captcha/i.test(a.body))

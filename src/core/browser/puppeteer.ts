@@ -79,7 +79,6 @@ export class PuppeteerDriver implements BrowserDriver {
     }
     try {
       const [tab = await b.newPage()] = await b.pages();
-      // Headed checks stay out of the way: the window goes straight to the Dock.
       if (!o.headless) await b.setWindowBounds(await tab.windowId(), { windowState: "minimized" });
       return new PuppeteerPage(b, tab, restore);
     } catch (e) {
@@ -157,6 +156,11 @@ class PuppeteerPage implements Page {
 
   async close() {
     await this.browser.close().finally(this.afterClose);
+  }
+
+  kill() {
+    this.browser.process()?.kill("SIGKILL");
+    this.afterClose();
   }
 
   private async nth(css: string, nth: number): Promise<ElementHandle> {

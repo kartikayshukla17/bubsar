@@ -32,7 +32,6 @@ export function Strip({
   const busy = state.mark === "active" || state.mark === "checking";
 
   const removes = step.to === "";
-  // What the plan does to the entry there now: replace it, add a new one, or remove it.
   const change =
     step.from === null ? (
       "Current entry not read yet"

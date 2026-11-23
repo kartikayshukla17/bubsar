@@ -63,12 +63,19 @@ export const KNOWN: {
   },
 ];
 
-/** Browsers installed where busbar is built, so its tests and real-world checks run on them. */
-const TESTED: BrowserId[] = ["brave", "dia", "firefox"];
+/**
+ * What busbar's own browser tests proved on the machine it's built on. Brave runs every
+ * seam-2 test. Firefox ran the recipe and driver tests once, but not the later BiDi-close and
+ * prefs-restore tests (its bundle is quarantined here). Dia never ran: it leaks network past
+ * every launch flag, so tests don't launch it.
+ */
+const TESTED: Partial<Record<BrowserId, string>> = {
+  brave: "",
+  firefox: " (partly tested on this machine)",
+};
 
-/** "Chrome (untested on this machine)" for a browser busbar hasn't been run against. */
 export function label(b: { id: BrowserId; name: string }) {
-  return TESTED.includes(b.id) ? b.name : `${b.name} (untested on this machine)`;
+  return `${b.name}${TESTED[b.id] ?? " (untested on this machine)"}`;
 }
 
 /** Where to look for apps: `BB_APPLICATIONS` (colon-separated), else the two usual folders. */

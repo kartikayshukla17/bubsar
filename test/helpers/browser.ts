@@ -32,11 +32,21 @@ export function pickTestBrowsers(
   return { browsers, skipped };
 }
 
-const hasQuarantine = (app: string) =>
-  spawnSync("xattr", ["-p", "com.apple.quarantine", app]).status === 0;
+type Run = (
+  cmd: string,
+  args: string[],
+) => { status: number | null; stderr: string; error?: Error };
+
+const xattr: Run = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" });
+
+/** Fails closed: only xattr's own "No such xattr" answer means the flag is absent. */
+export function isQuarantined(app: string, run: Run = xattr) {
+  const r = run("/usr/bin/xattr", ["-p", "com.apple.quarantine", app]);
+  return !(r.status === 1 && !r.error && /No such xattr/.test(r.stderr ?? ""));
+}
 
 export const { browsers: testBrowsers, skipped: skippedBrowsers } = pickTestBrowsers(
   detectBrowsers(["/Applications"]),
   process.env,
-  hasQuarantine,
+  isQuarantined,
 );

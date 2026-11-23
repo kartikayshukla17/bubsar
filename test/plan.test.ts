@@ -313,6 +313,21 @@ describe("bb plan fails closed", () => {
     },
   );
 
+  it("when the browser won't start: exits 1 and drops the stale plan, so bb apply --yes has nothing to apply", () => {
+    const p = planned({});
+    p.setWorld({ ...p.world(), attachFails: "Failed to launch the browser process!" });
+    const r = p.bb("plan", "--tunnel", NEW);
+    expect(r.stderr).toBe("bb: Failed to launch the browser process!\n");
+    expect(r.code).toBe(1);
+    expect(JSON.parse(p.read(".busbar/state.json")).google.planned).toBeNull();
+
+    p.setWorld({ ...p.world(), attachFails: undefined });
+    const apply = p.bb("apply", "--yes");
+    expect(apply.stderr).toBe("bb: No plan to apply. Run `bb plan --tunnel <url>` first.\n");
+    expect(apply.code).toBe(1);
+    expect(p.world().consoleCalls.filter((c: { op: string }) => c.op === "save")).toEqual([]);
+  });
+
   it("when the session has expired and you sign in: Enter, then busbar reads the client and plans", () => {
     const p = planned({ session: "signed-out" });
     const r = p.bbInput("\n", "plan", "--tunnel", NEW);

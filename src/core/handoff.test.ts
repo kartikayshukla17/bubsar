@@ -227,7 +227,7 @@ describe("applyPlan hands a sign-in to you, then resumes from the read (BB-06)",
     });
   });
 
-  it("a read that already shows the planned lists: an earlier Save landed, so it records ownership and writes nothing", async () => {
+  it("a read that already shows the planned lists: records ownership and writes nothing", async () => {
     const file = world({ client: structuredClone(next) });
     const { c } = consoles(file, []);
     const r = recorder();

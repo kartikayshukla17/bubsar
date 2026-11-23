@@ -151,8 +151,8 @@ describe("bb apply hands a sign-in to you, then carries on (BB-06)", () => {
     expect(again.code).toBe(0);
     expect(again.stdout).toBe(
       [
-        "Google already holds exactly the planned lists: an earlier Save landed. busbar recorded its entries and wrote nothing.",
-        "4 changes applied: 2 added, 2 removed. Not verified: nothing has checked that Google accepts the new redirect URI yet.",
+        "Google already holds exactly the planned lists. busbar wrote nothing, and recorded the entries it planned to add as its own.",
+        "Not verified: nothing has checked that Google accepts the new redirect URI yet.",
         "",
       ].join("\n"),
     );

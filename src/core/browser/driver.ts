@@ -14,11 +14,14 @@ export interface Page {
   fill(css: string, nth: number, value: string): Promise<void>;
   /** Trimmed text of the first match, or null when nothing matches. */
   text(css: string): Promise<string | null>;
+  /** Same id until the document is replaced (load, reload, cross-document navigation); an in-app route change keeps it. */
   loadId(): Promise<string>;
   /** PNG of the visible page. Only for `--debug`, which warns what it may show. */
   screenshot(): Promise<Uint8Array>;
   /** Closes the whole automated browser, which unlocks the profile. */
   close(): Promise<void>;
+  /** Ends the automated browser's process at once, for a close that never returns. */
+  kill(): void;
 }
 
 export type PlainEnd = "enter" | "closed" | "eof" | "stopped";

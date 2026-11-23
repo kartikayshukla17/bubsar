@@ -6,14 +6,13 @@ export type Lists = { redirectUris: string[]; jsOrigins: string[] };
 
 /** The Google recipe. Everything above it (plan, apply) goes through this. */
 export interface GoogleConsole {
-  /** Load the client page and read both lists. */
   read(): Promise<Lists>;
-  /** Edit, Save, wait for Google's confirmation, read back. (BB-04) */
   write(next: Lists): Promise<{ saved: Lists }>;
   /** PNG of the page as it is now, for `--debug` on failure. */
   screenshot(): Promise<Uint8Array>;
   /** Closes the automated browser, which unlocks the profile. */
   close(): Promise<void>;
+  kill(): void;
 }
 
 /** An expected element didn't appear in time. busbar never guesses past it. */
@@ -42,7 +41,6 @@ export class ReauthRequired extends Error {
   }
 }
 
-/** Google refused the Save, in its own words. (BB-04) */
 export class SaveRejected extends Error {
   constructor(readonly googleText: string) {
     super(`Google didn't save the client: ${googleText}`);
@@ -79,7 +77,7 @@ export function isReauth(url: string, accountsOrigin = ACCOUNTS_ORIGIN) {
 export class PageGoogleConsole implements GoogleConsole {
   readonly #timeoutMs: number;
   readonly #accounts: string;
-  #readIn: string | null = null;
+  #readIn: { load: string; url: string; lists: Lists } | null = null;
 
   constructor(
     private readonly page: Page,
@@ -103,19 +101,27 @@ export class PageGoogleConsole implements GoogleConsole {
       redirectUris: await this.list(LISTS.redirectUris),
       jsOrigins: await this.list(LISTS.jsOrigins),
     };
-    this.#readIn = await this.page.loadId();
+    this.#readIn = { load: await this.page.loadId(), url: await this.page.url(), lists };
     return lists;
   }
 
   async write(next: Lists): Promise<{ saved: Lists }> {
-    await this.sameLoad();
+    // The edits are computed from the page as it is now, so it must still show the client and lists read() saw.
+    const read = await this.sameLoad();
+    const now = {
+      redirectUris: await this.list(LISTS.redirectUris),
+      jsOrigins: await this.list(LISTS.jsOrigins),
+    };
+    if (!sameLists(now, read.lists))
+      throw new Error(
+        "The client's lists on the page changed after busbar read them, so busbar didn't press Save. Nothing was changed.",
+      );
     for (const key of ["redirectUris", "jsOrigins"] as const) {
       const l = LISTS[key];
-      const now = await this.page.values(SELECTORS[l.inputs]);
-      const drop = now.flatMap((url, i) => (next[key].includes(url) ? [] : [i]));
+      const drop = now[key].flatMap((url, i) => (next[key].includes(url) ? [] : [i]));
       for (const i of drop.reverse()) await this.page.click(SELECTORS[l.deletes], i);
-      const kept = now.length - drop.length;
-      for (const [j, url] of next[key].filter((u) => !now.includes(u)).entries()) {
+      const kept = now[key].length - drop.length;
+      for (const [j, url] of next[key].filter((u) => !now[key].includes(u)).entries()) {
         await this.page.click(SELECTORS[l.add]);
         await this.page.fill(SELECTORS[l.inputs], kept + j, url);
       }
@@ -154,13 +160,23 @@ export class PageGoogleConsole implements GoogleConsole {
     return this.page.close();
   }
 
+  kill() {
+    this.page.kill();
+  }
+
   private async sameLoad() {
-    if (this.#readIn === null) throw new Error("write() needs read() first, in the same page load");
+    const read = this.#readIn;
+    if (read === null) throw new Error("write() needs read() first, in the same page load");
     await this.notSignIn();
-    if ((await this.page.loadId()) !== this.#readIn)
+    if ((await this.page.loadId()) !== read.load)
       throw new Error(
         "The client page reloaded after busbar read it, so busbar didn't press Save. Nothing was changed.",
       );
+    if ((await this.page.url()) !== read.url)
+      throw new Error(
+        "The client page moved to another address after busbar read it, so busbar didn't press Save. Nothing was changed.",
+      );
+    return read;
   }
 
   private async answerTo(press: () => Promise<void>) {

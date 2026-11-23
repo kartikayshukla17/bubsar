@@ -71,6 +71,10 @@ export class FakeGoogleConsole implements GoogleConsole {
   close() {
     return this.page.close();
   }
+
+  kill() {
+    this.page.kill();
+  }
 }
 
 /** Where a scripted bounce lands. Never fetched: it's only a URL string. */

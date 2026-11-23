@@ -121,7 +121,28 @@
           return;
         }
         const app = document.getElementById("app");
+        const route = state.route;
+        const away = route
+          ? [
+              h(
+                "a",
+                {
+                  id: "bb-route",
+                  href: route.path,
+                  onclick: (e) => {
+                    e.preventDefault();
+                    history.pushState({}, "", route.path);
+                    state.route = null;
+                    state.lists = route.lists;
+                    render();
+                  },
+                },
+                "Another OAuth client",
+              ),
+            ]
+          : [];
         app.replaceChildren(
+          ...away,
           h(
             "form",
             { "aria-label": "OAuth client", onsubmit: save },

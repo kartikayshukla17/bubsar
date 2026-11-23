@@ -43,7 +43,7 @@ describe("bb login google", () => {
       [
         "bb: 3 browsers installed. Pick the one busbar signs into Google with:",
         "  bb login google --browser brave   Brave",
-        "  bb login google --browser dia     Dia",
+        "  bb login google --browser dia     Dia (untested on this machine)",
         "  bb login google --browser chrome  Chrome (untested on this machine)",
         "",
       ].join("\n"),
@@ -60,14 +60,14 @@ describe("bb login google", () => {
     });
     const r = p.bb("login", "google", "--browser", "dia");
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain("Dia (--browser)");
+    expect(r.stdout).toContain("Dia (untested on this machine) (--browser)");
     expect(r.stdout).toMatch(/google: signed in · Dia\n$/);
     const dia = join(p.home, "profiles", "enquiry-to-paid", "dia");
     expect(p.world().openPlainCalls).toEqual([{ browser: "dia", profileDir: dia, url: SIGN_IN }]);
     expect(JSON.parse(p.read(".busbar/local.json")).google.browser).toBe("dia");
 
     const again = p.bb("login", "google");
-    expect(again.stdout).toContain("Dia (remembered for this project)");
+    expect(again.stdout).toContain("Dia (untested on this machine) (remembered for this project)");
   });
 
   it("a second login, still signed in, opens no window and says so", () => {

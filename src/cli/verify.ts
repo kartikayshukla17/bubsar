@@ -2,11 +2,13 @@ import { parseArgs } from "node:util";
 import { plannedSteps } from "../core/apply";
 import type { Step } from "../core/board";
 import { loadConfig } from "../core/config";
+import { exitCode } from "../core/exit";
 import { type Lists, sameLists } from "../core/recipes/google/console";
 import { appendEvent, describe, readRun, startRun } from "../core/run";
 import { googleState, readState, writeState } from "../core/state";
 import { askAuthorize, authUrl } from "../core/verify/authorize";
 import { stepsMatch, targets, type VerifyOutcome, verifyGoogle } from "../core/verify/verify";
+import { lockProject } from "./lock";
 import { printVerified, printVerifyHead } from "./print";
 
 export function waitSeconds(raw: string | undefined) {
@@ -20,6 +22,7 @@ export async function cmdVerify(argv: string[]): Promise<number> {
   const waitMs = waitSeconds(flags.wait) * 1000;
   const cwd = process.cwd();
   const config = loadConfig(cwd);
+  lockProject(cwd);
   const google = config.destinations.google;
   const gstate = googleState(readState(cwd));
   const { planned } = gstate;
@@ -29,10 +32,13 @@ export async function cmdVerify(argv: string[]): Promise<number> {
     return 0;
   }
   if (!planned?.values || !planned.desired) {
+    const declared = google.redirect_uris;
     process.stdout.write(
-      "Nothing to verify: busbar hasn't read this client yet. Run `bb plan --tunnel <url>`, then `bb apply`.\n",
+      declared.length
+        ? "busbar hasn't read Google yet. Run bb plan, then bb apply.\n"
+        : "Nothing to verify: busbar hasn't read this client yet. Run `bb plan --tunnel <url>`, then `bb apply`.\n",
     );
-    return 0;
+    return exitCode({ ended: "finished", required: declared.map(() => "unknown") });
   }
   if (!sameLists(planned.read, planned.next))
     throw new Error("The last plan isn't applied yet. Run `bb apply`, then `bb verify`.");

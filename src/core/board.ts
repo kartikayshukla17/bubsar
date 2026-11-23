@@ -179,9 +179,9 @@ export function reduce(s: BoardState, a: Action): BoardState {
       return patch(s, a.id, { mark: step.verify.mark, fresh: true, note: step.verify.note });
     }
     case "verify-done": {
-      const proven = s.steps.every((st) =>
-        ["verified", "unexercised"].includes(s.strips[st.id]?.mark),
-      );
+      const proven =
+        s.steps.length > 0 &&
+        s.steps.every((st) => ["verified", "unexercised"].includes(s.strips[st.id]?.mark));
       return { ...s, phase: proven ? "verified" : "unverified" };
     }
     case "focus":

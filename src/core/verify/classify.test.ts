@@ -38,3 +38,17 @@ describe("verify classifier without an answer", () => {
     });
   });
 });
+
+describe("verify classifier on an error code", () => {
+  it("an OAuth error code beats an allowlisted sign-in path: unknown, not accepted", () => {
+    const authError =
+      "Cg5pbnZhbGlkX2NsaWVudBIfVGhlIE9BdXRoIGNsaWVudCB3YXMgbm90IGZvdW5kLiCRAw%3D%3D";
+    expect(
+      classify({
+        status: 302,
+        location: `https://accounts.google.com/v3/signin/identifier?authError=${authError}`,
+        body: "",
+      }),
+    ).toEqual({ result: "unknown", why: "Google answered invalid_client" });
+  });
+});

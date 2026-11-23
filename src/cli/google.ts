@@ -63,6 +63,8 @@ export function recordSession(projectDir: string, session: Session) {
 const closeFailed = (e: unknown) =>
   `couldn't close busbar's automated browser: ${(e as Error).message}`;
 
+const CLOSE_TIMEOUT_MS = 5000;
+
 /**
  * The CLI's side of a handoff: the automated browser on busbar's Google profile, attached
  * on demand, and the plain window that hands it to you. Ctrl-C during the wait stops.
@@ -116,9 +118,28 @@ export class DriverConsoles implements Consoles {
   async close() {
     const gc = this.#gc;
     this.#gc = null;
-    await gc?.close().catch((e: unknown) => {
-      process.stderr.write(`bb: also ${closeFailed(e)}. Quit it before the next bb command.\n`);
+    if (!gc) return;
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<"late">((done) => {
+      timer = setTimeout(() => done("late"), CLOSE_TIMEOUT_MS);
     });
+    const closed = gc.close().then(
+      () => "closed" as const,
+      (e: unknown) => {
+        process.stderr.write(`bb: also ${closeFailed(e)}. Quit it before the next bb command.\n`);
+        return "closed" as const;
+      },
+    );
+    try {
+      if ((await Promise.race([closed, late])) === "late") {
+        gc.kill();
+        process.stderr.write(
+          `bb: busbar's automated browser didn't close within ${CLOSE_TIMEOUT_MS / 1000}s, so busbar ended its process.\n`,
+        );
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 

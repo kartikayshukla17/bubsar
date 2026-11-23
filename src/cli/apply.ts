@@ -22,6 +22,7 @@ import {
   recordSession,
   withConsoles,
 } from "./google";
+import { lockProject } from "./lock";
 import { printApplied, printApply, printLanded } from "./print";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
@@ -71,22 +72,23 @@ export async function applyGoogle(
   consoles: DriverConsoles,
   o: { yes: boolean; show: boolean },
 ): Promise<ApplyOutcome> {
-  const state = readState(cwd);
-  const gstate = googleState(state);
+  const { owned } = googleState(readState(cwd));
   const io: ApplyIO = {
     show: (read, next) => {
       if (o.show) process.stdout.write(printApply(config, read, next, consoles.browser));
     },
     confirm: (n) => confirm(n, o.yes),
-    saved: (saved, asPlanned) =>
+    saved: (saved, asPlanned) => {
+      const state = readState(cwd);
       writeState(cwd, {
         ...state,
         google: {
-          ...gstate,
-          owned: ownedAfter(gstate.owned, planned.read, planned.next, saved),
+          ...googleState(state),
+          owned: ownedAfter(owned, planned.read, planned.next, saved),
           planned: asPlanned ? { ...planned, read: saved, next: saved } : planned,
         },
-      }),
+      });
+    },
     emit: (a) => appendEvent(cwd, a),
   };
   const out = await applyPlan(consoles, planned, steps, io);
@@ -100,6 +102,7 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()): Promis
   const { values: flags } = parseArgs({ args: argv, options: { yes: { type: "boolean" } } });
   const cwd = process.cwd();
   const config = loadConfig(cwd);
+  lockProject(cwd);
   const { planned } = googleState(readState(cwd));
   const google = config.destinations.google;
   if (!google) {
@@ -147,7 +150,7 @@ export async function cmdApply(argv: string[], driver = driverFromEnv()): Promis
       process.stdout.write(printApplied(planned.read, planned.next));
       return exitCode({ ended: "finished", required: [] });
     case "landed":
-      process.stdout.write(printLanded(planned.read, planned.next));
+      process.stdout.write(printLanded());
       return exitCode({ ended: "finished", required: [] });
     case "stopped":
       process.stderr.write(

@@ -9,11 +9,32 @@ export * from "../../src/core/board";
 export type DestinationRow = Destination & { y: number };
 export type ValueRow = Value & { y: number };
 
-/** State of the route value → destination, as the sector map draws it. */
+const WORST_FIRST: Mark[] = [
+  "failed",
+  "rejected",
+  "drift",
+  "handoff",
+  "active",
+  "checking",
+  "planned",
+  "unknown",
+  "unexercised",
+  "applied",
+  "verified",
+];
+
+const worst = (marks: Mark[]): Mark => WORST_FIRST.find((m) => marks.includes(m)) ?? "unknown";
+
+/**
+ * State of the route value → destination, as the sector map draws it. A tunnel route is the
+ * worst of its strips there; a strip unexercised by design (a JS origin) only counts when
+ * every strip is, as in verify-done.
+ */
 export function routeMark(s: BoardState, value: Value, dest: DestinationId): Mark {
   if (value.id === "tunnel.url") {
-    const step = s.steps.find((x) => x.destination === dest);
-    return step ? s.strips[step.id].mark : "unknown";
+    const marks = s.steps.filter((x) => x.destination === dest).map((x) => s.strips[x.id].mark);
+    const exercised = marks.filter((m) => m !== "unexercised");
+    return worst(exercised.length ? exercised : marks);
   }
   if (value.id === "WHATSAPP_VERIFY_TOKEN" && dest === "meta") {
     const m = s.strips.meta.mark;
@@ -23,22 +44,7 @@ export function routeMark(s: BoardState, value: Value, dest: DestinationId): Mar
 }
 
 export function valueMark(s: BoardState, value: Value): Mark {
-  const marks = value.routes.map((d) => routeMark(s, value, d));
-  const order: Mark[] = [
-    "failed",
-    "rejected",
-    "drift",
-    "handoff",
-    "active",
-    "checking",
-    "planned",
-    "unknown",
-    "unexercised",
-    "applied",
-    "verified",
-  ];
-  for (const m of order) if (marks.includes(m)) return m;
-  return "unknown";
+  return worst(value.routes.map((d) => routeMark(s, value, d)));
 }
 
 /** Everything the board draws besides the strips: whose run, what it wires, how to drive it. */

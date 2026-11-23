@@ -40,6 +40,22 @@ afterEach(async () => {
 });
 
 describe("bb rewire --tunnel <url>", () => {
+  it("when busbar's automated browser never finishes closing: ends its process, says so, and still verifies", async () => {
+    const p = signedIn(client, owned);
+    p.setWorld({ ...p.world(), closeHangs: true });
+    stub = await authStub(() => "accepted-signin-identifier");
+    const r = await p.bbAsync(["rewire", "--tunnel", NEW, "--yes", "--wait", "0"], {
+      BB_GOOGLE_AUTH_URL: stub.url,
+    });
+    expect(r.stderr).toBe(
+      "bb: busbar's automated browser didn't close within 5s, so busbar ended its process.\n",
+    );
+    expect(r.code).toBe(0);
+    expect(p.world().kills).toBe(1);
+    expect(stub.requests).toHaveLength(1);
+    expect(p.world().google.client).toEqual(next);
+  }, 20_000);
+
   it("plans, applies and verifies in one run on one browser session, and exits 0", async () => {
     const p = signedIn(client, owned);
     const before = attaches(p.world());

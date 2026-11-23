@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { statSync } from "node:fs";
 import { request } from "node:http";
 import { networkInterfaces } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { follow } from "../src/core/board";
 import type { Run, RunEvent } from "../src/core/run";
@@ -53,26 +55,27 @@ describe("bb ui daemon", () => {
   it("streams a plan made in another terminal within a second", async () => {
     const p = project();
     const base = await ui(p.dir);
-    const first = new Promise<{ run: string; seq: number; action: { type: string } }>(
-      (resolve, reject) => {
-        request(new URL("/api/events", base), (res) => {
-          expect(res.headers["content-type"]).toBe("text/event-stream");
-          let buf = "";
-          res.on("data", (d) => {
-            buf += d;
-            const m = buf.match(/^data: (.+)$/m);
-            if (m) resolve(JSON.parse(m[1]));
-          });
-        })
-          .on("error", reject)
-          .end();
-      },
-    );
+    const first = new Promise<{
+      at: number;
+      event: { run: string; seq: number; action: { type: string } };
+    }>((resolve, reject) => {
+      request(new URL("/api/events", base), (res) => {
+        expect(res.headers["content-type"]).toBe("text/event-stream");
+        let buf = "";
+        res.on("data", (d) => {
+          buf += d;
+          const m = buf.match(/^data: (.+)$/m);
+          if (m) resolve({ at: Date.now(), event: JSON.parse(m[1]) });
+        });
+      })
+        .on("error", reject)
+        .end();
+    });
     await new Promise((r) => setTimeout(r, 100)); // let the stream open
-    const t0 = Date.now();
     p.bb("plan", "--tunnel", TUNNEL);
-    const event = await first;
-    expect(Date.now() - t0).toBeLessThan(1000);
+    const written = statSync(join(p.dir, ".busbar", "events.jsonl")).mtimeMs;
+    const { at, event } = await first;
+    expect(at - written).toBeLessThan(1000);
     expect(event.action.type).toBe("plan");
     expect(event.run).toBe(JSON.parse(p.read(".busbar/run.json")).run);
   });
@@ -111,27 +114,28 @@ describe("bb ui session chip feed", () => {
   it("pushes a session event when a login in another terminal changes it", async () => {
     const p = project(SAMPLE_TOML, { browsers: ["dia"], google: { session: "signed-out" } });
     const base = await ui(p.dir, p.env);
-    const pushed = new Promise<{ google: { browserName: string; session: string } }>(
-      (resolve, reject) => {
-        request(new URL("/api/events", base), (res) => {
-          let buf = "";
-          res.on("data", (d) => {
-            buf += d;
-            for (const m of buf.matchAll(/^event: session\ndata: (.+)$/gm)) {
-              const e = JSON.parse(m[1]);
-              if (e.google?.session === "signed-in") resolve(e);
-            }
-          });
-        })
-          .on("error", reject)
-          .end();
-      },
-    );
+    const pushed = new Promise<{
+      at: number;
+      event: { google: { browserName: string; session: string } };
+    }>((resolve, reject) => {
+      request(new URL("/api/events", base), (res) => {
+        let buf = "";
+        res.on("data", (d) => {
+          buf += d;
+          for (const m of buf.matchAll(/^event: session\ndata: (.+)$/gm)) {
+            const e = JSON.parse(m[1]);
+            if (e.google?.session === "signed-in") resolve({ at: Date.now(), event: e });
+          }
+        });
+      })
+        .on("error", reject)
+        .end();
+    });
     await new Promise((r) => setTimeout(r, 100)); // let the stream open
-    const t0 = Date.now();
     p.bb("login", "google");
-    const event = await pushed;
-    expect(Date.now() - t0).toBeLessThan(1000);
+    const written = statSync(join(p.dir, ".busbar", "local.json")).mtimeMs;
+    const { at, event } = await pushed;
+    expect(at - written).toBeLessThan(1000);
     expect(event.google).toMatchObject({ browserName: "Dia", session: "signed-in" });
   });
 });

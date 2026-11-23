@@ -12,7 +12,6 @@ import { type EnterWait, untilEnter } from "./enter";
  * back into it so tests can assert on it.
  */
 export type FakeWorld = {
-  /** Installed browsers. */
   browsers: BrowserId[];
   google: {
     /** The Google session inside busbar's profile. */
@@ -37,11 +36,11 @@ export type FakeWorld = {
   };
   /** Written by the fake Google recipe: every console operation, in order. */
   consoleCalls?: ({ op: "read"; url: string } | { op: "save"; url: string; lists: Lists })[];
+  attachFails?: string;
   closeFails?: string;
   closeHangs?: boolean;
-  /** Written by the fake: every un-automated window opened. */
+  kills?: number;
   openPlainCalls?: { browser: BrowserId; profileDir: string; url: string }[];
-  /** Written by the fake: every automated attach. */
   attachCalls?: { browser: BrowserId; profileDir: string; headless: boolean }[];
 };
 
@@ -106,6 +105,8 @@ export class FakeDriver implements BrowserDriver {
         { browser: browser.id, profileDir, headless: o.headless },
       ];
     });
+    const { attachFails } = readWorld(this.file);
+    if (attachFails) throw new Error(attachFails);
     return new FakePage(this.file);
   }
 }
@@ -131,6 +132,11 @@ class FakePage implements Page {
     const { closeFails, closeHangs } = readWorld(this.file);
     if (closeHangs) await new Promise(() => {});
     if (closeFails) throw new Error(closeFails);
+  }
+  kill() {
+    updateWorld(this.file, (w) => {
+      w.kills = (w.kills ?? 0) + 1;
+    });
   }
   /** A 1x1 PNG: the fake world has no pixels. */
   async screenshot() {

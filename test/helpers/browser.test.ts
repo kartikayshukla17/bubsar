@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InstalledBrowser } from "../../src/core/browser/browsers";
-import { pickTestBrowsers } from "./browser";
+import { isQuarantined, pickTestBrowsers } from "./browser";
 
 const brave: InstalledBrowser = {
   id: "brave",
@@ -54,5 +54,47 @@ describe("pickTestBrowsers: which installed browsers seam 2 may launch", () => {
       browsers: [brave],
       skipped: [],
     });
+  });
+});
+
+describe("isQuarantined: the xattr read fails closed", () => {
+  const APP = "/Applications/Firefox.app";
+  const ran: [string, string[]][] = [];
+  const answer =
+    (r: { status: number | null; stderr?: string; error?: Error }) =>
+    (cmd: string, args: string[]) => {
+      ran.push([cmd, args]);
+      return { stderr: "", ...r };
+    };
+
+  it("asks /usr/bin/xattr, not whatever xattr is on PATH", () => {
+    ran.length = 0;
+    isQuarantined(APP, answer({ status: 0 }));
+    expect(ran).toEqual([["/usr/bin/xattr", ["-p", "com.apple.quarantine", APP]]]);
+  });
+
+  it('only "No such xattr" (exit 1) means not quarantined', () => {
+    expect(
+      isQuarantined(
+        APP,
+        answer({ status: 1, stderr: `xattr: ${APP}: No such xattr: com.apple.quarantine\n` }),
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    ["the flag is there (exit 0)", { status: 0 }],
+    [
+      "xattr couldn't be started",
+      { status: null, error: new Error("spawnSync /usr/bin/xattr ENOENT") },
+    ],
+    ["xattr was killed (no status)", { status: null }],
+    ["another exit status", { status: 2, stderr: "xattr: [Errno 13] Permission denied\n" }],
+    [
+      "exit 1 for another reason",
+      { status: 1, stderr: `xattr: ${APP}: Operation not permitted\n` },
+    ],
+  ])("anything else counts as quarantined: %s", (_, r) => {
+    expect(isQuarantined(APP, answer(r))).toBe(true);
   });
 });

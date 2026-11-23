@@ -50,6 +50,7 @@ describe.skipIf(testBrowsers.length === 0)("Google recipe vs the stand-in", () =
       standIn.set.saveDelayMs = 0;
       standIn.set.banner = null;
       standIn.set.savingText = null;
+      standIn.set.route = null;
       standIn.requests.length = 0;
       standIn.saves.length = 0;
     });
@@ -179,6 +180,44 @@ describe.skipIf(testBrowsers.length === 0)("Google recipe vs the stand-in", () =
         );
         expect(standIn.saves).toEqual([]);
         expect(standIn.requests).toEqual([PAGE, PAGE]);
+      });
+
+      const OTHER = {
+        redirectUris: ["https://other.example/api/auth/callback/google"],
+        jsOrigins: ["https://other.example"],
+      };
+
+      it("an in-app route change to another client after the read: refuses before any click, no Save", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.route = {
+          path: `/auth/clients/111111111111-other.apps.googleusercontent.com?project=${STAND_IN.projectId}`,
+          lists: OTHER,
+        };
+        const r = recipe();
+        await r.read();
+        await page.click("#bb-route");
+        await expect(r.write(next)).rejects.toThrow(
+          "The client page moved to another address after busbar read it, so busbar didn't press Save. Nothing was changed.",
+        );
+        expect(await page.values(SELECTORS.redirectUriInputs)).toEqual(OTHER.redirectUris);
+        expect(await page.values(SELECTORS.jsOriginInputs)).toEqual(OTHER.jsOrigins);
+        expect(standIn.saves).toEqual([]);
+        expect(standIn.requests).toEqual([PAGE]);
+      });
+
+      it("lists that changed on the page after the read, at the same address: refuses before any click, no Save", async () => {
+        standIn.lists = structuredClone(before);
+        standIn.set.route = { path: PAGE, lists: OTHER };
+        const r = recipe();
+        await r.read();
+        await page.click("#bb-route");
+        await expect(r.write(next)).rejects.toThrow(
+          "The client's lists on the page changed after busbar read them, so busbar didn't press Save. Nothing was changed.",
+        );
+        expect(await page.values(SELECTORS.redirectUriInputs)).toEqual(OTHER.redirectUris);
+        expect(await page.values(SELECTORS.jsOriginInputs)).toEqual(OTHER.jsOrigins);
+        expect(standIn.saves).toEqual([]);
+        expect(standIn.requests).toEqual([PAGE]);
       });
 
       it("edits that didn't take on the page: no Save", async () => {

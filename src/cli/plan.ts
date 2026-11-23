@@ -21,6 +21,7 @@ import {
   recordSession,
   withConsoles,
 } from "./google";
+import { lockProject } from "./lock";
 import { printDiff, printPlan } from "./print";
 
 /**
@@ -45,8 +46,8 @@ async function saveScreenshot(projectDir: string, gc: GoogleConsole) {
 }
 
 /**
- * Forget the last plan when this one couldn't read the console, so `bb apply` never acts on
- * a plan the user didn't just see. Touches nothing else, and nothing at all when no plan stands.
+ * Forget the last plan before reading the console again, so `bb apply` never acts on a plan
+ * the user didn't just see. Touches nothing else, and nothing at all when no plan stands.
  */
 function dropPlan(projectDir: string) {
   const state = readState(projectDir);
@@ -74,15 +75,13 @@ export async function planGoogle(
   o: { adopt?: boolean; debug?: boolean } = {},
 ): Promise<Planning | Stopped> {
   const base = { project: config.project.name, ...describe(config, resolveValues(config, values)) };
+  dropPlan(cwd);
   const state = readState(cwd);
   const gstate = googleState(state);
   const unread = plan(config, values);
   let handedOff = false;
   const emit = (a: Action) => {
-    if (!handedOff) {
-      dropPlan(cwd);
-      startRun(cwd, base, { type: "plan", steps: unread });
-    }
+    if (!handedOff) startRun(cwd, base, { type: "plan", steps: unread });
     handedOff = true;
     appendEvent(cwd, a);
   };
@@ -90,11 +89,7 @@ export async function planGoogle(
     try {
       return await gc.read();
     } catch (e) {
-      // An earlier plan (maybe for another tunnel) must never be what bb apply acts on.
-      if (e instanceof SelectorMissing) {
-        dropPlan(cwd);
-        failRun(cwd, base, unread, e.message);
-      }
+      if (e instanceof SelectorMissing) failRun(cwd, base, unread, e.message);
       if (o.debug && !(e instanceof ReauthRequired)) await saveScreenshot(cwd, gc);
       throw e;
     }
@@ -122,6 +117,7 @@ export async function cmdPlan(argv: string[], driver = driverFromEnv()): Promise
   const values: Record<string, string> = {};
   if (flags.tunnel !== undefined) values["tunnel.url"] = flags.tunnel;
   const base = { project: config.project.name, ...describe(config, resolveValues(config, values)) };
+  lockProject(cwd);
   const google = config.destinations.google;
   if (!google) {
     process.stdout.write(

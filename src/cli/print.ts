@@ -113,10 +113,10 @@ export function printApplied(read: Lists, next: Lists): string {
   );
 }
 
-export function printLanded(read: Lists, next: Lists): string {
+export function printLanded(): string {
   return [
-    "Google already holds exactly the planned lists: an earlier Save landed. busbar recorded its entries and wrote nothing.",
-    appliedLine(read, next),
+    "Google already holds exactly the planned lists. busbar wrote nothing, and recorded the entries it planned to add as its own.",
+    "Not verified: nothing has checked that Google accepts the new redirect URI yet.",
     "",
   ].join("\n");
 }

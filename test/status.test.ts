@@ -61,7 +61,7 @@ describe("bb status", () => {
       [
         "busbar status · enquiry-to-paid",
         "",
-        "google: signed in · Firefox",
+        "google: signed in · Firefox (partly tested on this machine)",
         `  Profile  ${profile}`,
         "           Firefox profile, protected by file permissions (Firefox doesn't use Keychain encryption for cookies).",
         "  Checked  just now: the Cloud console loaded without a redirect to Google sign-in.",
@@ -99,7 +99,7 @@ describe("bb status", () => {
     p.bb("login", "google", "--browser", "brave");
     p.bb("login", "google", "--browser", "dia");
     const r = p.bb("status");
-    expect(r.stdout).toContain("google: signed in · Dia\n");
+    expect(r.stdout).toContain("google: signed in · Dia (untested on this machine)\n");
     expect(r.stdout).toContain(
       `  Also     Brave profile, not in use: ${join(p.home, "profiles", "enquiry-to-paid", "brave")}\n`,
     );
