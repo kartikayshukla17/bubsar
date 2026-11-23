@@ -40,6 +40,74 @@ describe("the handoff window (BB-06) is the same plain process, at Google's own 
   });
 });
 
+const firefox: InstalledBrowser = {
+  id: "firefox",
+  name: "Firefox",
+  executable: "/Applications/Firefox.app/Contents/MacOS/firefox",
+  engine: "firefox",
+};
+const FF_PROFILE = "/tmp/bb-home/profiles/enquiry-to-paid/firefox";
+
+describe("Firefox's plain window (sign-in and handoff) is an ordinary Firefox on busbar's profile", () => {
+  it("is -profile <dir> -no-remote <url>, with no remote agent, no Marionette and no automation prefs", () => {
+    const challenge =
+      "https://accounts.google.com/v3/signin/challenge/pwd?continue=https%3A%2F%2Fconsole.cloud.google.com%2F";
+    const args = plainLaunchArgs(firefox, FF_PROFILE, challenge);
+    expect(args).toEqual(["-profile", FF_PROFILE, "-no-remote", challenge]);
+    expect(args.join(" ")).not.toMatch(/remote-debugging|marionette|headless|user_pref|prefs/i);
+  });
+});
+
+describe("automationLaunchOptions for Firefox", () => {
+  it("talks WebDriver BiDi on an ephemeral port that Firefox binds to localhost, and lets no other host or web origin connect", () => {
+    const o = automationLaunchOptions(firefox, FF_PROFILE, { headless: true, keychain: "real" });
+    expect(o.browser).toBe("firefox");
+    expect(o.protocol).toBe("webDriverBiDi");
+    expect(o.executablePath).toBe(firefox.executable);
+    expect(o.userDataDir).toBe(FF_PROFILE);
+    expect(o.headless).toBe(true);
+    expect(o.pipe).toBeUndefined();
+    expect(o.debuggingPort).toBeUndefined();
+    expect(o.args).toEqual(["--remote-debugging-port=0"]);
+    expect(o.ignoreDefaultArgs).toBeUndefined();
+    expect(JSON.stringify(o)).not.toMatch(/remote-allow-hosts|remote-allow-origins|marionette/);
+  });
+
+  it("is the same whatever the keychain setting: Firefox has no Keychain to mock", () => {
+    expect(
+      automationLaunchOptions(firefox, FF_PROFILE, { headless: false, keychain: "mock" }),
+    ).toEqual(automationLaunchOptions(firefox, FF_PROFILE, { headless: false, keychain: "real" }));
+  });
+
+  it("loopbackOnly (tests) turns off Firefox's own background networking; production sets no prefs", () => {
+    const o = automationLaunchOptions(firefox, FF_PROFILE, {
+      headless: true,
+      keychain: "mock",
+      loopbackOnly: true,
+    });
+    expect(o.extraPrefsFirefox).toMatchObject({
+      "network.proxy.type": 1,
+      "network.proxy.http": "127.0.0.1",
+      "network.proxy.http_port": 9,
+      "network.proxy.ssl": "127.0.0.1",
+      "network.proxy.ssl_port": 9,
+      "network.proxy.socks": "127.0.0.1",
+      "network.proxy.socks_port": 9,
+      "network.dns.native-is-localhost": true,
+      "network.trr.mode": 5,
+      "network.captive-portal-service.enabled": false,
+      "network.connectivity-service.enabled": false,
+      "toolkit.telemetry.enabled": false,
+      "app.normandy.enabled": false,
+      "dom.push.enabled": false,
+      "app.update.auto": false,
+      "security.OCSP.enabled": 0,
+    });
+    const real = automationLaunchOptions(firefox, FF_PROFILE, { headless: true, keychain: "real" });
+    expect(real.extraPrefsFirefox).toBeUndefined();
+  });
+});
+
 describe("automationLaunchOptions", () => {
   it("talks over a pipe, never a port, on busbar's profile", () => {
     const o = automationLaunchOptions(brave, PROFILE, { headless: true, keychain: "real" });

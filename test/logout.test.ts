@@ -43,7 +43,7 @@ describe("bb logout google", () => {
 
     const r = p.bb("logout", "google");
     expect(r.stderr).toBe(
-      `bb: .busbar/local.json: google.browser "${browser}" isn't a browser busbar knows (brave, dia, chrome, edge, firefox). Delete .busbar/local.json and run bb login google.\n`,
+      `bb: .busbar/local.json: google.browser "${browser}" isn't a browser busbar knows (brave, dia, chrome, edge, firefox, firefox-dev, firefox-nightly). Delete .busbar/local.json and run bb login google.\n`,
     );
     expect(r.code).toBe(1);
     expect(existsSync(join(target, "keep.txt"))).toBe(true);

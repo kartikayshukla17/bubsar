@@ -33,27 +33,26 @@ function pickBrowser(
   flag: string | undefined,
   remembered: string | undefined,
 ): { browser: InstalledBrowser; why: string } {
-  const usable = installed.filter((b) => b.engine === "chromium");
   if (flag !== undefined) {
     const known = KNOWN.find((k) => k.id === flag);
     if (!known)
       throw new Error(`--browser ${flag}: expected one of ${KNOWN.map((k) => k.id).join(", ")}.`);
-    if (known.engine !== "chromium")
-      throw new Error(`--browser ${flag}: busbar doesn't drive ${known.name} yet.`);
-    const browser = usable.find((b) => b.id === flag);
+    const browser = installed.find((b) => b.id === flag);
     if (!browser) throw new Error(`--browser ${flag}: ${known.name} isn't installed.`);
     return { browser, why: "--browser" };
   }
-  const kept = usable.find((b) => b.id === remembered);
+  const kept = installed.find((b) => b.id === remembered);
   if (kept) return { browser: kept, why: "remembered for this project" };
-  if (usable.length === 1) return { browser: usable[0], why: "the only browser installed" };
-  if (usable.length === 0)
-    throw new Error("no supported browser installed. busbar drives Brave, Dia, Chrome or Edge.");
-  const width = Math.max(...usable.map((b) => b.id.length));
+  if (installed.length === 1) return { browser: installed[0], why: "the only browser installed" };
+  if (installed.length === 0)
+    throw new Error(
+      "no supported browser installed. busbar drives Brave, Dia, Chrome, Edge or Firefox.",
+    );
+  const width = Math.max(...installed.map((b) => b.id.length));
   throw new Error(
     [
-      `${usable.length} browsers installed. Pick the one busbar signs into Google with:`,
-      ...usable.map((b) => `  bb login google --browser ${b.id.padEnd(width)}  ${label(b)}`),
+      `${installed.length} browsers installed. Pick the one busbar signs into Google with:`,
+      ...installed.map((b) => `  bb login google --browser ${b.id.padEnd(width)}  ${label(b)}`),
     ].join("\n"),
   );
 }
@@ -166,7 +165,11 @@ export async function cmdStatus(driver: BrowserDriver = driverFromEnv()) {
   });
   out(`google: ${session === "signed-in" ? "signed in" : "signed out"} · ${label(browser)}`);
   out(`  Profile  ${dir}`);
-  out(`           busbar's own, run with ${browser.name}'s real Keychain encryption, not a mock.`);
+  out(
+    browser.engine === "firefox"
+      ? "           Firefox profile, protected by file permissions (Firefox doesn't use Keychain encryption for cookies)."
+      : `           busbar's own, run with ${browser.name}'s real Keychain encryption, not a mock.`,
+  );
   out(
     session === "signed-in"
       ? "  Checked  just now: the Cloud console loaded without a redirect to Google sign-in."

@@ -49,6 +49,27 @@ describe("detectBrowsers", () => {
     ]);
   });
 
+  it("finds Firefox Developer Edition and Nightly as their own browsers, each on the Firefox engine", () => {
+    const root = appRoot(
+      "Firefox Developer Edition.app/Contents/MacOS/firefox",
+      "Firefox Nightly.app/Contents/MacOS/firefox",
+    );
+    expect(detectBrowsers([root])).toEqual([
+      {
+        id: "firefox-dev",
+        name: "Firefox Developer Edition",
+        executable: join(root, "Firefox Developer Edition.app/Contents/MacOS/firefox"),
+        engine: "firefox",
+      },
+      {
+        id: "firefox-nightly",
+        name: "Firefox Nightly",
+        executable: join(root, "Firefox Nightly.app/Contents/MacOS/firefox"),
+        engine: "firefox",
+      },
+    ]);
+  });
+
   it("takes the first root that has a browser, and ignores app bundles without the executable", () => {
     const system = appRoot("Brave Browser.app/Contents/MacOS/Brave Browser");
     const user = appRoot(

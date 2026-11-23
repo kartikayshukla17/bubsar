@@ -4,12 +4,14 @@ import { automationLaunchOptions, plainLaunchArgs } from "./args";
 import { applicationRoots, detectBrowsers, type InstalledBrowser } from "./browsers";
 import type { BrowserDriver, Page, PlainEnd } from "./driver";
 import { untilEnter } from "./enter";
+import { keepPrefs } from "./firefox";
 
 /** How long a plain window gets to shut down cleanly before it's killed. */
 const QUIT_GRACE_MS = 10_000;
 
 /**
- * Real browsers: plain processes for sign-in, puppeteer-core over a pipe for automation.
+ * Real browsers: plain processes for sign-in; puppeteer-core for automation, over a pipe
+ * for Chromium and WebDriver BiDi on a localhost WebSocket for Firefox.
  * Production passes `{ keychain: "real" }`; tests add `"mock"` and `loopbackOnly`.
  */
 export class PuppeteerDriver implements BrowserDriver {
@@ -39,7 +41,9 @@ export class PuppeteerDriver implements BrowserDriver {
       // out. Quitting the browser (Cmd-Q) ends the wait too.
       const end = await Promise.race([untilEnter(signal), exited, failed]);
       if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGTERM"); // Chromium shuts down cleanly on SIGTERM and frees the profile.
+        // Chromium shuts down cleanly on SIGTERM. Firefox dies on it, and the OS releases its
+        // profile lock either way.
+        child.kill("SIGTERM");
         const force = setTimeout(() => child.kill("SIGKILL"), QUIT_GRACE_MS);
         await exited;
         clearTimeout(force);
@@ -54,16 +58,23 @@ export class PuppeteerDriver implements BrowserDriver {
   async attach(browser: InstalledBrowser, profileDir: string, o: { headless: boolean }) {
     // Loaded here so commands that never automate a browser don't pay for it.
     const { default: puppeteer } = await import("puppeteer-core");
-    const b = await puppeteer.launch(
-      automationLaunchOptions(browser, profileDir, { ...this.o, headless: o.headless }),
-    );
+    const restore = browser.engine === "firefox" ? keepPrefs(profileDir) : () => {};
+    let b: Browser;
+    try {
+      b = await puppeteer.launch(
+        automationLaunchOptions(browser, profileDir, { ...this.o, headless: o.headless }),
+      );
+    } catch (e) {
+      restore();
+      throw e;
+    }
     try {
       const [tab = await b.newPage()] = await b.pages();
       // Headed checks stay out of the way: the window goes straight to the Dock.
       if (!o.headless) await b.setWindowBounds(await tab.windowId(), { windowState: "minimized" });
-      return new PuppeteerPage(b, tab);
+      return new PuppeteerPage(b, tab, restore);
     } catch (e) {
-      await b.close();
+      await b.close().finally(restore);
       throw e;
     }
   }
@@ -73,6 +84,7 @@ class PuppeteerPage implements Page {
   constructor(
     private readonly browser: Browser,
     private readonly tab: PuppeteerTab,
+    private readonly afterClose: () => void,
   ) {}
 
   async goto(url: string) {
@@ -135,7 +147,7 @@ class PuppeteerPage implements Page {
   }
 
   async close() {
-    await this.browser.close();
+    await this.browser.close().finally(this.afterClose);
   }
 
   private async nth(css: string, nth: number): Promise<ElementHandle> {

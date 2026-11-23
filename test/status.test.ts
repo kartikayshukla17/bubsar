@@ -50,6 +50,27 @@ describe("bb status", () => {
     expect(JSON.parse(p.read(".busbar/local.json")).google.session).toBe("signed-out");
   });
 
+  it("a Firefox profile says it's protected by file permissions, not Keychain encryption", () => {
+    const p = project(SAMPLE_TOML, { browsers: ["firefox"], google: { session: "signed-out" } });
+    expect(p.bb("login", "google").code).toBe(0);
+    const r = p.bb("status");
+    const profile = join(p.home, "profiles", "enquiry-to-paid", "firefox");
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe(
+      [
+        "busbar status · enquiry-to-paid",
+        "",
+        "google: signed in · Firefox",
+        `  Profile  ${profile}`,
+        "           Firefox profile, protected by file permissions (Firefox doesn't use Keychain encryption for cookies).",
+        "  Checked  just now: the Cloud console loaded without a redirect to Google sign-in.",
+        "",
+      ].join("\n"),
+    );
+    expect(r.stdout).not.toContain("Keychain encryption, not a mock");
+  });
+
   it("labels Chrome and Edge as untested on this machine", () => {
     const p = project(SAMPLE_TOML, { browsers: ["chrome"], google: { session: "signed-out" } });
     p.bb("login", "google");

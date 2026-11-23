@@ -2,7 +2,14 @@ import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export type BrowserId = "brave" | "dia" | "chrome" | "edge" | "firefox";
+export type BrowserId =
+  | "brave"
+  | "dia"
+  | "chrome"
+  | "edge"
+  | "firefox"
+  | "firefox-dev"
+  | "firefox-nightly";
 export type InstalledBrowser = {
   id: BrowserId;
   name: string;
@@ -42,10 +49,22 @@ export const KNOWN: {
     bundle: "Firefox.app/Contents/MacOS/firefox",
     engine: "firefox",
   },
+  {
+    id: "firefox-dev",
+    name: "Firefox Developer Edition",
+    bundle: "Firefox Developer Edition.app/Contents/MacOS/firefox",
+    engine: "firefox",
+  },
+  {
+    id: "firefox-nightly",
+    name: "Firefox Nightly",
+    bundle: "Firefox Nightly.app/Contents/MacOS/firefox",
+    engine: "firefox",
+  },
 ];
 
 /** Browsers installed where busbar is built, so its tests and real-world checks run on them. */
-const TESTED: BrowserId[] = ["brave", "dia"];
+const TESTED: BrowserId[] = ["brave", "dia", "firefox"];
 
 /** "Chrome (untested on this machine)" for a browser busbar hasn't been run against. */
 export function label(b: { id: BrowserId; name: string }) {

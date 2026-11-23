@@ -12,21 +12,19 @@ import {
   SelectorMissing,
 } from "../src/core/recipes/google/console";
 import { AFTER_SAVE, SELECTORS, type SelectorName } from "../src/core/recipes/google/selectors";
-import { testBrowser as browser } from "./helpers/browser";
+import { testBrowsers } from "./helpers/browser";
 import { STAND_IN, type StandIn, standInConsole } from "./helpers/google-console";
 
 // The Google recipe against the hand-built stand-in client page (test/fixtures/google-console),
-// in installed Brave (helpers/browser.ts says why not Dia): headless, a throwaway profile, the
-// mock keychain, and loopback-only networking. Nothing here reaches Google.
+// in installed Brave and Firefox (helpers/browser.ts says why not Dia): headless, a throwaway
+// profile, the mock keychain, and loopback-only networking. Nothing here reaches Google.
 
 let standIn: StandIn;
 let page: Page;
 
-describe.skipIf(!browser)(
-  `Google recipe vs the stand-in, on ${browser?.name ?? "no Brave"}`,
-  () => {
+describe.skipIf(testBrowsers.length === 0)("Google recipe vs the stand-in", () => {
+  describe.each(testBrowsers)("on $name", (browser) => {
     beforeAll(async () => {
-      if (!browser) return;
       standIn = await standInConsole();
       page = await new PuppeteerDriver({ keychain: "mock", loopbackOnly: true }).attach(
         browser,
@@ -290,5 +288,5 @@ describe.skipIf(!browser)(
       await r.read();
       expect(Buffer.from((await r.screenshot()).subarray(1, 4)).toString()).toBe("PNG");
     });
-  },
-);
+  });
+});
